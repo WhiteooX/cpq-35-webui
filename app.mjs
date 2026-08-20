@@ -6,11 +6,14 @@ import {
   inspectAnswers,
   scoreDyad
 } from './cpq-model.mjs';
+import { generateNumericPin } from './security-utils.mjs';
+import { computeCommunicationStrain, evaluateDivorceProbability } from './relationship-research.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const blankAnswers = () => Array(35).fill(null);
 const cfg = window.CPQ_SUPABASE || {};
+const divorceModelConfig = window.CPQ_DIVORCE_MODEL || null;
 
 const AFFECT_CODES = Object.freeze({
   positive: { label: '积极情感', detail: '温暖、关爱或愉悦' },
@@ -20,16 +23,40 @@ const AFFECT_CODES = Object.freeze({
   external: { label: '外化负向', detail: '愤怒、否定或蔑视' }
 });
 
+const SPAFF_INFORMED_DIMENSIONS = Object.freeze({
+  contempt: { label: '蔑视', detail: '贬低、嘲讽或优越姿态', tone: 'negative' },
+  domineeringBelligerence: { label: '支配／挑衅', detail: '控制、好战或挑衅表达', tone: 'negative' },
+  annoyanceFrustration: { label: '恼怒／挫败', detail: '烦躁、不耐或受挫', tone: 'negative' },
+  conflictLevel: { label: '总体冲突强度', detail: '整段互动的对抗程度', tone: 'negative' },
+  affection: { label: '关爱', detail: '温暖、亲近或关爱表达', tone: 'positive' },
+  validation: { label: '理解／确认', detail: '理解并接纳伴侣的感受或观点', tone: 'positive' },
+  collaboration: { label: '协作', detail: '共同解决问题与配合', tone: 'positive' },
+  perspectiveInterest: { label: '关注伴侣视角', detail: '主动了解伴侣的想法与感受', tone: 'positive' },
+  lightness: { label: '轻松感', detail: '适度幽默、放松或缓和气氛', tone: 'positive' }
+});
+
+const blankSpaffRatings = () => Object.fromEntries(Object.keys(SPAFF_INFORMED_DIMENSIONS).map(code => [code, null]));
+
 const state = {
   respondent: 'A',
   stage: 'emergence',
   answers: { A: blankAnswers(), B: blankAnswers() },
   submitted: { A: false, B: false },
-  session: { mode: 'local', code: null, role: null, token: null },
-  events: []
+  session: { mode: 'local', code: null, role: null, token: null, invitePin: null },
+  events: [],
+  spaffRatings: { A: blankSpaffRatings(), B: blankSpaffRatings() }
 };
 
 let draftTimer = null;
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
 function cloudReady() {
   return Boolean(cfg.url && cfg.anonKey);
@@ -61,7 +88,8 @@ function resetAssessment(mode = 'local') {
   state.respondent = 'A';
   state.stage = 'emergence';
   state.events = [];
-  if (mode === 'local') state.session = { mode: 'local', code: null, role: null, token: null };
+  state.spaffRatings = { A: blankSpaffRatings(), B: blankSpaffRatings() };
+  if (mode === 'local') state.session = { mode: 'local', code: null, role: null, token: null, invitePin: null };
   renderAll();
 }
 
@@ -160,6 +188,7 @@ function renderSession() {
   $('#cloudStatus').textContent = cloudReady() ? 'Supabase 已配置' : '未配置 · 使用本地模式';
   $('#cloudDot').classList.toggle('ok', cloudReady());
   $('#privacyBadge').textContent = active ? '云同步会话' : '本地模式';
+  $('#copyPinBtn').hidden = !(active && state.session.role === 'A' && state.session.invitePin);
   if (active) {
     $('#activeCode').textContent = state.session.code;
     $('#activeRole').textContent = state.session.role;
@@ -221,18 +250,39 @@ function renderResults() {
     appendScoreCell(row, values.gap);
     return row;
   }));
+
+  const communicationStrain = computeCommunicationStrain(dyad);
+  $('#communicationStrainValue').textContent = communicationStrain.value.toFixed(1);
+  $('#lowConstructiveValue').textContent = `${communicationStrain.components.lowConstructiveCommunication.toFixed(1)}/100`;
+  $('#demandWithdrawValue').textContent = `${communicationStrain.components.demandWithdraw.toFixed(1)}/100`;
+
+  const probability = evaluateDivorceProbability(
+    { cpqCommunicationStrain: communicationStrain.value },
+    divorceModelConfig
+  );
+  const probabilityValue = $('#divorceProbabilityValue');
+  if (probability.available) {
+    probabilityValue.textContent = `${probability.percentage.toFixed(1)}%`;
+    probabilityValue.classList.remove('unavailable');
+    $('#divorceProbabilityDetail').textContent = `${probability.horizonMonths} 个月内法律离婚概率 · 模型 ${probability.modelId} · 适用人群：${probability.population}`;
+  } else {
+    probabilityValue.textContent = '不可计算';
+    probabilityValue.classList.add('unavailable');
+    $('#divorceProbabilityDetail').textContent = probability.reason;
+  }
 }
 
 function saveSessionToken() {
   if (state.session.mode !== 'cloud') return;
-  localStorage.setItem('cpqSessionV2', JSON.stringify(state.session));
+  const { mode, code, role, token } = state.session;
+  localStorage.setItem('cpqSessionV2', JSON.stringify({ mode, code, role, token }));
 }
 
 function loadSessionToken() {
   try {
     const saved = JSON.parse(localStorage.getItem('cpqSessionV2') || 'null');
     if (saved && /^\d{6}$/.test(saved.code) && ['A', 'B'].includes(saved.role) && saved.token) {
-      state.session = { mode: 'cloud', code: saved.code, role: saved.role, token: saved.token };
+      state.session = { mode: 'cloud', code: saved.code, role: saved.role, token: saved.token, invitePin: null };
       state.respondent = saved.role;
       return true;
     }
@@ -278,12 +328,12 @@ async function createCloudSession() {
     setMessage('#sessionMessage', '正在创建会话…');
     const data = await rpc('create_couple_session', { p_pin: pin });
     resetAssessment('cloud');
-    state.session = { mode: 'cloud', code: data.code, role: 'A', token: data.token };
+    state.session = { mode: 'cloud', code: data.code, role: 'A', token: data.token, invitePin: pin };
     state.respondent = 'A';
     saveSessionToken();
     $('#createPin').value = '';
     renderAll();
-    setMessage('#sessionMessage', `会话 ${data.code} 已创建。请分别发送邀请码和 PIN。`);
+    setMessage('#sessionMessage', `会话 ${data.code} 已创建。请分别发送邀请码和 PIN；PIN 仅保留到本页刷新前。`);
   } catch (error) {
     setMessage('#sessionMessage', `创建失败：${error.message}`);
   }
@@ -300,7 +350,7 @@ async function joinCloudSession() {
     setMessage('#sessionMessage', '正在加入会话…');
     const data = await rpc('join_couple_session', { p_code: code, p_pin: pin });
     resetAssessment('cloud');
-    state.session = { mode: 'cloud', code, role: 'B', token: data.token };
+    state.session = { mode: 'cloud', code, role: 'B', token: data.token, invitePin: null };
     state.respondent = 'B';
     saveSessionToken();
     $('#joinPin').value = '';
@@ -329,6 +379,17 @@ function normalizeEvents(value) {
   }));
 }
 
+function normalizeSpaffRatings(value) {
+  const normalized = { A: blankSpaffRatings(), B: blankSpaffRatings() };
+  for (const person of ['A', 'B']) {
+    for (const code of Object.keys(SPAFF_INFORMED_DIMENSIONS)) {
+      const rating = value?.[person]?.[code];
+      normalized[person][code] = Number.isInteger(rating) && rating >= 1 && rating <= 10 ? rating : null;
+    }
+  }
+  return normalized;
+}
+
 async function refreshCloudSession() {
   if (state.session.mode !== 'cloud') return;
   try {
@@ -340,10 +401,12 @@ async function refreshCloudSession() {
       state.answers.A = normalizeAnswers(data.answersA);
       state.answers.B = normalizeAnswers(data.answersB);
       state.events = normalizeEvents(data.spaffEvents);
+      state.spaffRatings = normalizeSpaffRatings(data.spaffRatings);
     } else {
       const other = state.session.role === 'A' ? 'B' : 'A';
       state.answers[other] = blankAnswers();
       state.events = [];
+      state.spaffRatings = { A: blankSpaffRatings(), B: blankSpaffRatings() };
     }
     renderAll();
     setMessage('#sessionMessage', state.submitted.A && state.submitted.B ? '双方已提交，标准结果已解锁。' : '同步完成。');
@@ -416,13 +479,27 @@ async function deleteCloudSession() {
 function exportResults() {
   const dyad = scoreDyad(state.answers.A, state.answers.B);
   if (!dyad.complete || !state.submitted.A || !state.submitted.B) return;
+  const communicationStrain = computeCommunicationStrain(dyad);
+  const divorceProbability = evaluateDivorceProbability(
+    { cpqCommunicationStrain: communicationStrain.value },
+    divorceModelConfig
+  );
   const payload = {
-    schemaVersion: '2.0',
+    schemaVersion: '2.2',
     instrument: CPQ_VERSION,
     scoring: 'Crenshaw et al. (2017), summed subscales; items 1, 24, and 26 reverse-scored as 10 - response',
     answers: state.answers,
     scores: { A: dyad.A.scores, B: dyad.B.scores },
     pairedReports: dyad.comparisons,
+    derivedResearch: {
+      communicationStrain,
+      divorceProbability
+    },
+    observation: {
+      macroAffectEvents: state.events,
+      spaffInformedRatings: state.spaffRatings,
+      status: 'Exploratory only; not a complete or validated SPAFF implementation'
+    },
     exportedAt: new Date().toISOString()
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
@@ -494,6 +571,7 @@ function renderDuration(person) {
 function renderObservation() {
   renderDuration('A');
   renderDuration('B');
+  renderSpaffRatings();
   const cards = state.events.map((event, index) => {
     const card = document.createElement('div');
     card.className = 'event';
@@ -514,13 +592,46 @@ function renderObservation() {
   $('#observationTimeline').replaceChildren(...cards);
 }
 
+function renderSpaffRatings() {
+  const person = $('#spaffPerson').value;
+  const cards = Object.entries(SPAFF_INFORMED_DIMENSIONS).map(([code, definition]) => {
+    const label = document.createElement('label');
+    label.className = `rating-item ${definition.tone}`;
+    const heading = document.createElement('span');
+    heading.className = 'rating-label';
+    heading.textContent = definition.label;
+    const detail = document.createElement('small');
+    detail.textContent = definition.detail;
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', `伴侣 ${person} · ${definition.label}`);
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '未评级';
+    select.append(blank, ...Array.from({ length: 10 }, (_, index) => {
+      const option = document.createElement('option');
+      option.value = String(index + 1);
+      option.textContent = String(index + 1);
+      return option;
+    }));
+    select.value = state.spaffRatings[person][code] ?? '';
+    select.addEventListener('change', event => {
+      state.spaffRatings[person][code] = event.target.value ? Number(event.target.value) : null;
+      syncObservation();
+    });
+    label.append(heading, detail, select);
+    return label;
+  });
+  $('#spaffRatingGrid').replaceChildren(...cards);
+}
+
 async function syncObservation() {
   if (state.session.mode !== 'cloud' || !state.submitted.A || !state.submitted.B) return;
   try {
-    await rpc('save_spaff_events', {
+    await rpc('save_spaff_observation', {
       p_code: state.session.code,
       p_token: state.session.token,
-      p_events: state.events
+      p_events: state.events,
+      p_ratings: state.spaffRatings
     });
   } catch (error) {
     setMessage('#sessionMessage', `观察记录同步失败：${error.message}`);
@@ -572,15 +683,32 @@ function setupActions() {
   $('#submitAnswersBtn').addEventListener('click', () => saveAnswers(true));
   $('#exportBtn').addEventListener('click', exportResults);
   $('#createSessionBtn').addEventListener('click', createCloudSession);
+  $('#generatePinBtn').addEventListener('click', async () => {
+    try {
+      const pin = generateNumericPin();
+      $('#createPin').value = pin;
+      const copied = await copyText(pin);
+      setMessage('#sessionMessage', copied ? '已安全生成并复制 10 位 PIN。' : '已安全生成 10 位 PIN；剪贴板不可用，请显示后手动复制。');
+    } catch (error) {
+      setMessage('#sessionMessage', `PIN 生成失败：${error.message}`);
+    }
+  });
+  $('#togglePinBtn').addEventListener('click', event => {
+    const showing = $('#createPin').type === 'text';
+    $('#createPin').type = showing ? 'password' : 'text';
+    event.currentTarget.textContent = showing ? '显示' : '隐藏';
+    event.currentTarget.setAttribute('aria-pressed', String(!showing));
+  });
   $('#joinSessionBtn').addEventListener('click', joinCloudSession);
   $('#refreshSessionBtn').addEventListener('click', refreshCloudSession);
   $('#copyCodeBtn').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(state.session.code);
-      setMessage('#sessionMessage', '邀请码已复制；请通过另一个可信渠道告知 PIN。');
-    } catch (_) {
-      setMessage('#sessionMessage', `邀请码：${state.session.code}`);
-    }
+    const copied = await copyText(state.session.code);
+    setMessage('#sessionMessage', copied ? '邀请码已复制；请通过另一个可信渠道告知 PIN。' : `邀请码：${state.session.code}`);
+  });
+  $('#copyPinBtn').addEventListener('click', async () => {
+    if (!state.session.invitePin) return;
+    const copied = await copyText(state.session.invitePin);
+    setMessage('#sessionMessage', copied ? 'PIN 已复制；刷新页面后将无法再次读取。' : '剪贴板不可用，请返回创建区手动复制。');
   });
   $('#leaveSessionBtn').addEventListener('click', leaveCloudSession);
   $('#deleteSessionBtn').addEventListener('click', deleteCloudSession);
@@ -589,6 +717,14 @@ function setupActions() {
     if (!window.confirm('确定清空全部观察记录吗？')) return;
     state.events = [];
     renderObservation();
+    syncObservation();
+  });
+  $('#spaffPerson').addEventListener('change', renderSpaffRatings);
+  $('#clearSpaffRatingBtn').addEventListener('click', () => {
+    const person = $('#spaffPerson').value;
+    if (!window.confirm(`确定清空伴侣 ${person} 的 9 维整体评级吗？`)) return;
+    state.spaffRatings[person] = blankSpaffRatings();
+    renderSpaffRatings();
     syncObservation();
   });
 }

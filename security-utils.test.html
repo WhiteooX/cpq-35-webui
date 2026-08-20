@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Security utility tests</title>
+<pre id="result">RUNNING</pre>
+<script type="module">
+  import { generateNumericPin } from './security-utils.mjs';
+
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+
+  try {
+    for (const length of [6, 10, 12]) {
+      for (let index = 0; index < 100; index += 1) {
+        const pin = generateNumericPin(length);
+        assert(new RegExp(`^\\d{${length}}$`).test(pin), `invalid ${length}-digit PIN`);
+      }
+    }
+
+    const deterministicCrypto = {
+      getRandomValues(bytes) {
+        bytes.set([250, 255, 0, 9, 10, 249, 1, 2, 3, 4, 5, 6].slice(0, bytes.length));
+        return bytes;
+      }
+    };
+    assert(generateNumericPin(6, deterministicCrypto) === '090912', 'rejection sampling regression');
+    assert((() => { try { generateNumericPin(5); return false; } catch (error) { return error instanceof RangeError; } })(), 'minimum length guard');
+    assert((() => { try { generateNumericPin(13); return false; } catch (error) { return error instanceof RangeError; } })(), 'maximum length guard');
+    document.querySelector('#result').textContent = 'PASS';
+  } catch (error) {
+    document.querySelector('#result').textContent = `FAIL: ${error.message}`;
+  }
+</script>

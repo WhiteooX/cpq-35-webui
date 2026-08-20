@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，采用 Crenshaw 等（2017）revised scoring。">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含独立的 SPAFF-informed 情感观察研究原型。">
   <meta name="referrer" content="no-referrer">
   <title>CPQ-35 双人沟通模式问卷</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -34,7 +34,7 @@
     <button class="tab active" data-tab="session" type="button">01 · 测评会话</button>
     <button class="tab" data-tab="questionnaire" type="button">02 · CPQ-35</button>
     <button class="tab" data-tab="results" type="button">03 · 标准计分</button>
-    <button class="tab" data-tab="observation" type="button">04 · 观察扩展</button>
+    <button class="tab" data-tab="observation" type="button">04 · 观察 / SPAFF</button>
     <button class="tab" data-tab="methods" type="button">05 · 方法</button>
   </nav>
 
@@ -57,7 +57,12 @@
         <h3>创建跨设备会话</h3>
         <p>创建者为伴侣 A。PIN 仅用于邀请，请通过可信渠道分别发送邀请码与 PIN。</p>
         <label for="createPin">6–12 位数字 PIN</label>
-        <input id="createPin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="new-password">
+        <div class="input-actions">
+          <input id="createPin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="new-password">
+          <button id="generatePinBtn" class="button" type="button">生成并复制</button>
+          <button id="togglePinBtn" class="button" type="button" aria-pressed="false">显示</button>
+        </div>
+        <p class="field-help">自动生成使用 Web Crypto 产生 10 位数字 PIN。PIN 不会持久化保存，创建后请及时发送。</p>
         <div class="button-row"><button id="createSessionBtn" class="button primary" type="button">创建会话</button></div>
       </article>
       <article class="card">
@@ -79,6 +84,7 @@
         <div class="button-row">
           <button id="refreshSessionBtn" class="button" type="button">刷新</button>
           <button id="copyCodeBtn" class="button" type="button">复制邀请码</button>
+          <button id="copyPinBtn" class="button" type="button" hidden>复制 PIN</button>
           <button id="leaveSessionBtn" class="button" type="button">离开</button>
           <button id="deleteSessionBtn" class="button danger" type="button">删除云端会话</button>
         </div>
@@ -146,16 +152,34 @@
           <tbody id="comparisonRows"></tbody>
         </table>
       </article>
+      <div class="grid two research-output-grid">
+        <article class="card research-metric">
+          <h3>沟通压力研究指数</h3>
+          <p><strong id="communicationStrainValue" class="research-number">—</strong><span>/100</span></p>
+          <dl class="research-components">
+            <div><dt>低建设性沟通</dt><dd id="lowConstructiveValue">—</dd></div>
+            <div><dt>要求／回避</dt><dd id="demandWithdrawValue">—</dd></div>
+          </dl>
+          <p class="field-help">等权派生指标：两项各占 50%。只描述当前沟通信号，不是正式量表、诊断或离婚概率。</p>
+        </article>
+        <article class="card research-metric">
+          <h3>经校准的离婚概率模型</h3>
+          <p><strong id="divorceProbabilityValue" class="research-number unavailable">不可计算</strong></p>
+          <p id="divorceProbabilityDetail">未加载经过独立外部验证并获准部署的纵向模型。</p>
+          <p class="field-help">目标必须明确为某一期限内的法律离婚；模型不可用于未婚伴侣的分手结局。</p>
+        </article>
+      </div>
       <aside class="callout"><strong>如何阅读：</strong>建设性沟通分数越高，报告的建设性沟通越多；要求／回避分数越高，报告的对应模式越多。CPQ 本身不提供用于判断“健康／不健康”的统一临床分界。</aside>
     </div>
   </section>
 
   <section id="observation" class="panel" tabindex="-1">
     <div class="section-heading">
-      <div><h2>情感观察扩展</h2><p>这是独立的探索性观察模块，不属于 CPQ，也不参与 CPQ 标准计分。</p></div>
+      <div><h2>情感观察与 SPAFF-informed 扩展</h2><p>这是独立的研究原型，不属于 CPQ，也不参与 CPQ 标准计分。</p></div>
     </div>
-    <div class="callout warning"><strong>已与 CPQ 分离：</strong>这里按状态持续时间汇总，不再把点击次数解释为情感占比，也不再声称对 CPQ 进行“交叉验证”。</div>
+    <div class="callout warning"><strong>方法边界：</strong>宏观状态按持续时间汇总；9 维整体评级参考一项公开的 SPAFF/SCIFF 改编研究。两者都不是完整 SPAFF，未经编码员训练与一致性检验时只能作为探索性记录，不能对 CPQ“交叉验证”或预测关系结局。</div>
     <div class="card">
+      <h3>宏观情感状态持续时间（非 SPAFF）</h3>
       <div class="button-row">
         <label for="observationPerson">当前编码对象</label>
         <select id="observationPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
@@ -169,6 +193,17 @@
       <article class="card"><h3>B 的时长分布</h3><div id="durationB"></div></article>
     </div>
     <article class="card"><h3>状态时间轴</h3><div id="observationTimeline" class="timeline"></div></article>
+    <article class="card">
+      <h3>SPAFF-informed 9 维整体评级</h3>
+      <p>观看完整互动后，分别对 A、B 评级：1 = 未观察到，10 = 非常明显。维度来自 Roels 等（2021）公开说明的 SPAFF/SCIFF 改编方案；该研究包含训练编码员并报告编码员间一致性，本网页不会自动获得同等效度。</p>
+      <div class="button-row">
+        <label for="spaffPerson">当前评级对象</label>
+        <select id="spaffPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
+        <button id="clearSpaffRatingBtn" class="button danger" type="button">清空当前评级</button>
+      </div>
+      <div id="spaffRatingGrid" class="rating-grid"></div>
+      <p class="field-help">研究依据：Roels et al. (2021), <a href="https://doi.org/10.1016/j.psyneuen.2021.105265">doi:10.1016/j.psyneuen.2021.105265</a>。正式 SPAFF 的心理测量限制参见 Johnson (2002), <a href="https://doi.org/10.1037/1040-3590.14.4.423">doi:10.1037/1040-3590.14.4.423</a>。</p>
+    </article>
   </section>
 
   <section id="methods" class="panel" tabindex="-1">
@@ -192,19 +227,43 @@
         </ul>
       </article>
     </div>
+    <article class="card table-card">
+      <h2>扩展测量路线</h2>
+      <p>CPQ 描述沟通模式，不单独预测关系发展。若进行纵向研究，应把不同构念保持分离。</p>
+      <table>
+        <thead><tr><th scope="col">研究层级</th><th scope="col">优先工具</th><th scope="col">用途</th><th scope="col">边界</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">主要结局</th><td>CSI-16</td><td>重复测量关系满意度</td><td>单次分数不是未来结局</td></tr>
+          <tr><th scope="row">承诺机制</th><td>Investment Model Scale</td><td>满意、替代选择、投入、承诺</td><td>不与 CPQ 合成总分</td></tr>
+          <tr><th scope="row">依恋背景</th><td>ECR-R</td><td>依恋焦虑与回避</td><td>不是关系健康诊断</td></tr>
+          <tr><th scope="row">近端稳定性</th><td>Marital Instability Index</td><td>分居／离婚想法与行动</td><td>敏感且主要面向婚姻</td></tr>
+          <tr><th scope="row">安全域</th><td>CTS2／本地验证的 IPV 筛查</td><td>独立识别暴力与伤害</td><td>必须有独立安全处置流程</td></tr>
+        </tbody>
+      </table>
+    </article>
+    <article class="card">
+      <h2>研究指数与概率模型不是一回事</h2>
+      <p>沟通压力研究指数把“低建设性沟通”和“四个要求／回避方向均值”标准化后各赋 50% 权重。它便于审计，但尚不是经验证的心理量表，也不代表某种事件发生的百分比。</p>
+      <p>离婚概率接口默认关闭。只有目标被限定为某个固定月数内的法律离婚，模型在独立队列完成外部验证，并经过人工部署批准后，结果页才会显示数字；否则明确显示“不可计算”。</p>
+    </article>
+    <aside class="callout warning"><strong>预测限制：</strong>跨 43 个纵向情侣数据集的研究发现，自陈变量能解释较多当前关系质量，却难以预测之后的关系质量变化。因此，本网站不从单次 CPQ 分数伪造个人概率；预留模型也必须通过纵向校准与独立外部验证。<a href="https://doi.org/10.1073/pnas.1917036117">Joel et al. (2020)</a></aside>
     <article class="card references">
       <h2>来源</h2>
       <ol>
         <li>Christensen, A., &amp; Sullaway, M. (1984). <em>Communication Patterns Questionnaire</em>.</li>
         <li>Crenshaw, A. O., Christensen, A., Baucom, D. H., Epstein, N. B., &amp; Baucom, B. R. W. (2017). Revised scoring and improved reliability for the Communication Patterns Questionnaire. <em>Psychological Assessment, 29</em>(7), 913–925. <a href="https://doi.org/10.1037/pas0000385">https://doi.org/10.1037/pas0000385</a></li>
+        <li>Johnson, M. D. (2002). The observation of specific affect in marital interactions. <em>Psychological Assessment, 14</em>(4), 423–438. <a href="https://doi.org/10.1037/1040-3590.14.4.423">https://doi.org/10.1037/1040-3590.14.4.423</a></li>
+        <li>Joel, S., Eastwick, P. W., Allison, C. J., et al. (2020). Machine learning uncovers the most robust self-report predictors of relationship quality across 43 longitudinal couples studies. <em>PNAS, 117</em>(32), 19061–19071. <a href="https://doi.org/10.1073/pnas.1917036117">https://doi.org/10.1073/pnas.1917036117</a></li>
+        <li>Woodin, E. M. (2011). A two-dimensional approach to relationship conflict: Meta-analytic findings. <em>Journal of Family Psychology, 25</em>(3), 325–335. <a href="https://doi.org/10.1037/a0023791">https://doi.org/10.1037/a0023791</a></li>
       </ol>
     </article>
     <aside class="callout danger-note"><strong>安全提示：</strong>CPQ 完整题组包含身体攻击行为题目，但它不是专门的暴力风险筛查。如果现实中存在即时人身危险，请优先寻求当地紧急服务和可信支持。</aside>
   </section>
 
-  <footer>CPQ-35 WebUI · standard scoring core · optional observation module</footer>
+  <footer>CPQ-35 standard scoring core · SPAFF-informed observation prototype</footer>
 </main>
 <script src="supabase-config.js"></script>
+<script src="divorce-model-config.js"></script>
 <script type="module" src="app.mjs"></script>
 </body>
 </html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relationship research model tests</title>
+<pre id="result">RUNNING</pre>
+<script type="module">
+  import { computeCommunicationStrain, evaluateDivorceProbability } from './relationship-research.mjs';
+
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+  const dyad = (cc, dw) => ({
+    complete: true,
+    A: { scores: { constructiveCommunication: cc, selfDemandPartnerWithdraw: dw, partnerDemandSelfWithdraw: dw } },
+    B: { scores: { constructiveCommunication: cc, selfDemandPartnerWithdraw: dw, partnerDemandSelfWithdraw: dw } }
+  });
+
+  try {
+    assert(computeCommunicationStrain(dyad(81, 7)).value === 0, 'minimum strain boundary');
+    assert(computeCommunicationStrain(dyad(9, 63)).value === 100, 'maximum strain boundary');
+    assert(computeCommunicationStrain({ complete: false }).available === false, 'incomplete CPQ guard');
+
+    assert(evaluateDivorceProbability({ cpqCommunicationStrain: 50 }, null).code === 'NO_MODEL', 'missing model guard');
+    const model = {
+      modelId: 'synthetic-test-only',
+      outcome: 'legal_divorce',
+      horizonMonths: 60,
+      population: 'synthetic test data',
+      intercept: 0,
+      coefficients: { cpqCommunicationStrain: 1 },
+      standardization: { cpqCommunicationStrain: { mean: 50, scale: 10 } },
+      calibration: { intercept: 0, slope: 1 },
+      externalValidation: { status: 'passed', sampleSize: 1000, events: 200 },
+      deploymentApproved: true
+    };
+    const probability = evaluateDivorceProbability({ cpqCommunicationStrain: 50 }, model);
+    assert(probability.available && probability.percentage === 50, 'calibrated logistic calculation');
+    assert(evaluateDivorceProbability({}, model).code === 'MISSING_FEATURE', 'missing feature guard');
+    assert(evaluateDivorceProbability({ cpqCommunicationStrain: 50 }, { ...model, deploymentApproved: false }).code === 'NOT_APPROVED', 'deployment approval guard');
+    document.querySelector('#result').textContent = 'PASS';
+  } catch (error) {
+    document.querySelector('#result').textContent = `FAIL: ${error.message}`;
+  }
+</script>

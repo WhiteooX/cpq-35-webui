@@ -10,7 +10,10 @@ create table if not exists public.couple_sessions (
   answers_b jsonb not null default '[]'::jsonb,
   submitted_a boolean not null default false,
   submitted_b boolean not null default false,
+  -- Legacy column name retained for non-destructive migration. These rows are
+  -- macro affect-duration events and must not be interpreted as formal SPAFF.
   spaff_events jsonb not null default '[]'::jsonb,
+  spaff_ratings jsonb not null default '{"A": {}, "B": {}}'::jsonb,
   failed_attempts integer not null default 0,
   locked_until timestamptz,
   expires_at timestamptz not null default (now() + interval '30 days'),
@@ -24,6 +27,7 @@ create table if not exists public.couple_sessions (
 alter table public.couple_sessions add column if not exists failed_attempts integer not null default 0;
 alter table public.couple_sessions add column if not exists locked_until timestamptz;
 alter table public.couple_sessions add column if not exists expires_at timestamptz not null default (now() + interval '30 days');
+alter table public.couple_sessions add column if not exists spaff_ratings jsonb not null default '{"A": {}, "B": {}}'::jsonb;
 
 alter table public.couple_sessions enable row level security;
 revoke all on public.couple_sessions from public, anon, authenticated;
@@ -32,6 +36,7 @@ revoke all on public.couple_sessions from public, anon, authenticated;
 -- allowed a caller with the invitation PIN to replace an existing role token.
 drop function if exists public.join_couple_session(text, text, text);
 drop function if exists public._hash_pin(text);
+drop function if exists public.save_spaff_events(text, uuid, jsonb);
 
 create or replace function public._pin_matches(p_stored text, p_pin text)
 returns boolean
@@ -96,6 +101,39 @@ as $$
                   or (event->>'endMs')::numeric > 9999999999999
                 else false
               end
+      )
+    else false
+  end
+$$;
+
+create or replace function public._valid_spaff_ratings(p_ratings jsonb)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select case
+    when jsonb_typeof(p_ratings) = 'object'
+      and jsonb_typeof(p_ratings->'A') = 'object'
+      and jsonb_typeof(p_ratings->'B') = 'object'
+    then
+      not exists (
+        select 1 from jsonb_object_keys(p_ratings) as person
+        where person not in ('A', 'B')
+      )
+      and not exists (
+        select 1
+        from (values ('A'), ('B')) as people(person)
+        cross join lateral jsonb_each(p_ratings -> people.person) as rating(code, value)
+        where code not in (
+          'contempt', 'domineeringBelligerence', 'annoyanceFrustration', 'conflictLevel',
+          'affection', 'validation', 'collaboration', 'perspectiveInterest', 'lightness'
+        )
+        or jsonb_typeof(value) not in ('number', 'null')
+        or (
+          jsonb_typeof(value) = 'number'
+          and (value #>> '{}') !~ '^(10|[1-9])$'
+        )
       )
     else false
   end
@@ -270,13 +308,19 @@ begin
     'answersA', case when s.submitted_a and s.submitted_b then s.answers_a else null end,
     'answersB', case when s.submitted_a and s.submitted_b then s.answers_b else null end,
     'spaffEvents', case when s.submitted_a and s.submitted_b then s.spaff_events else '[]'::jsonb end,
+    'spaffRatings', case when s.submitted_a and s.submitted_b then s.spaff_ratings else '{"A": {}, "B": {}}'::jsonb end,
     'expiresAt', s.expires_at,
     'updatedAt', s.updated_at
   );
 end;
 $$;
 
-create or replace function public.save_spaff_events(p_code text, p_token uuid, p_events jsonb)
+create or replace function public.save_spaff_observation(
+  p_code text,
+  p_token uuid,
+  p_events jsonb,
+  p_ratings jsonb
+)
 returns jsonb
 language plpgsql
 security definer
@@ -294,8 +338,11 @@ begin
   if s.token_a <> p_token and s.token_b <> p_token then raise exception 'Invalid member token'; end if;
   if not (s.submitted_a and s.submitted_b) then raise exception 'Both partners must submit CPQ first'; end if;
   if not public._valid_observation_events(p_events) then raise exception 'Invalid observation event data'; end if;
+  if not public._valid_spaff_ratings(p_ratings) then raise exception 'Invalid SPAFF-informed rating data'; end if;
 
-  update public.couple_sessions set spaff_events = p_events, updated_at = now() where id = s.id;
+  update public.couple_sessions
+  set spaff_events = p_events, spaff_ratings = p_ratings, updated_at = now()
+  where id = s.id;
   return jsonb_build_object('ok', true, 'count', jsonb_array_length(p_events));
 end;
 $$;
@@ -320,17 +367,18 @@ $$;
 revoke execute on function public._pin_matches(text, text) from public, anon, authenticated;
 revoke execute on function public._valid_cpq_answers(jsonb) from public, anon, authenticated;
 revoke execute on function public._valid_observation_events(jsonb) from public, anon, authenticated;
+revoke execute on function public._valid_spaff_ratings(jsonb) from public, anon, authenticated;
 
 revoke execute on function public.create_couple_session(text) from public;
 revoke execute on function public.join_couple_session(text, text) from public;
 revoke execute on function public.save_couple_answers(text, uuid, jsonb, boolean) from public;
 revoke execute on function public.get_couple_session(text, uuid) from public;
-revoke execute on function public.save_spaff_events(text, uuid, jsonb) from public;
+revoke execute on function public.save_spaff_observation(text, uuid, jsonb, jsonb) from public;
 revoke execute on function public.delete_couple_session(text, uuid) from public;
 
 grant execute on function public.create_couple_session(text) to anon, authenticated;
 grant execute on function public.join_couple_session(text, text) to anon, authenticated;
 grant execute on function public.save_couple_answers(text, uuid, jsonb, boolean) to anon, authenticated;
 grant execute on function public.get_couple_session(text, uuid) to anon, authenticated;
-grant execute on function public.save_spaff_events(text, uuid, jsonb) to anon, authenticated;
+grant execute on function public.save_spaff_observation(text, uuid, jsonb, jsonb) to anon, authenticated;
 grant execute on function public.delete_couple_session(text, uuid) to anon, authenticated;

@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CPQ WebUI smoke tests</title>
+<pre id="result">RUNNING</pre>
+<iframe id="app" src="./index.html" title="Test app" width="390" height="844"></iframe>
+<script type="module">
+  const result = document.querySelector('#result');
+  const frame = document.querySelector('#app');
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+  const waitFor = async predicate => {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('application did not finish rendering');
+  };
+
+  frame.addEventListener('load', async () => {
+    try {
+      const doc = frame.contentDocument;
+      await waitFor(() => doc.querySelectorAll('.rating-item').length === 9);
+
+      assert(doc.querySelector('#communicationStrainValue'), 'communication strain result card');
+      assert(doc.querySelector('#divorceProbabilityValue').textContent.trim() === '不可计算', 'probability disabled by default');
+
+      doc.querySelector('#generatePinBtn').click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      assert(/^\d{10}$/.test(doc.querySelector('#createPin').value), 'automatic PIN generation');
+
+      doc.querySelector('[data-tab="observation"]').click();
+      const ratings = doc.querySelectorAll('#spaffRatingGrid select');
+      assert(ratings.length === 9, 'SPAFF-informed dimension count');
+      ratings[0].value = '7';
+      ratings[0].dispatchEvent(new Event('change', { bubbles: true }));
+      doc.querySelector('#spaffPerson').value = 'B';
+      doc.querySelector('#spaffPerson').dispatchEvent(new Event('change', { bubbles: true }));
+      doc.querySelector('#spaffPerson').value = 'A';
+      doc.querySelector('#spaffPerson').dispatchEvent(new Event('change', { bubbles: true }));
+      assert(doc.querySelector('#spaffRatingGrid select').value === '7', 'SPAFF-informed rating persistence');
+
+      assert(
+        doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1,
+        `mobile horizontal overflow: ${doc.documentElement.scrollWidth}/${doc.documentElement.clientWidth}`
+      );
+      result.textContent = 'PASS';
+    } catch (error) {
+      result.textContent = `FAIL: ${error.message}`;
+    }
+  }, { once: true });
+</script>
