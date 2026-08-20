@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，采用 Crenshaw 等（2017）revised scoring。">
+  <meta name="referrer" content="no-referrer">
+  <title>CPQ-35 双人沟通模式问卷</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#mainContent">跳到主要内容</a>
+<main id="mainContent" class="shell">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Communication Patterns Questionnaire</p>
+      <h1>CPQ-35 双人测评</h1>
+      <p class="lede">分别记录两位伴侣对关系问题出现、讨论和讨论结束后三个阶段的沟通模式，并按 revised scoring 报告三项标准分量表。</p>
+    </div>
+    <div class="badges" aria-label="量表规格">
+      <span class="badge">35 个题位</span>
+      <span class="badge">1–9 分</span>
+      <span class="badge">三阶段</span>
+      <span class="badge" id="privacyBadge">本地模式</span>
+    </div>
+  </header>
+
+  <aside class="callout warning" aria-label="使用说明">
+    <strong>测量边界：</strong>本页面按 CPQ-35 题位和 Crenshaw 等（2017）revised scoring 实现。英文题面始终保留，中文作为对照阅读。分数是描述性量表结果，没有常模分界、诊断阈值或自动关系结论。
+  </aside>
+
+  <nav class="tabs" aria-label="主功能">
+    <button class="tab active" data-tab="session" type="button">01 · 测评会话</button>
+    <button class="tab" data-tab="questionnaire" type="button">02 · CPQ-35</button>
+    <button class="tab" data-tab="results" type="button">03 · 标准计分</button>
+    <button class="tab" data-tab="observation" type="button">04 · 观察扩展</button>
+    <button class="tab" data-tab="methods" type="button">05 · 方法</button>
+  </nav>
+
+  <section id="session" class="panel active" tabindex="-1">
+    <div class="section-heading">
+      <div>
+        <h2>选择作答方式</h2>
+        <p>可在一台设备上依次作答，也可配置 Supabase 后让两台设备独立作答。</p>
+      </div>
+      <span class="status"><span id="cloudDot" class="status-dot"></span><span id="cloudStatus">正在检查配置</span></span>
+    </div>
+
+    <div class="grid two">
+      <article class="card">
+        <h3>本地双人模式</h3>
+        <p>默认模式。A 提交锁定后交给 B 作答；双方提交前不显示标准结果。刷新页面会清除未导出的本地数据。</p>
+        <button id="startLocalBtn" class="button primary" type="button">开始新的本地测评</button>
+      </article>
+      <article class="card">
+        <h3>创建跨设备会话</h3>
+        <p>创建者为伴侣 A。PIN 仅用于邀请，请通过可信渠道分别发送邀请码与 PIN。</p>
+        <label for="createPin">6–12 位数字 PIN</label>
+        <input id="createPin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="new-password">
+        <div class="button-row"><button id="createSessionBtn" class="button primary" type="button">创建会话</button></div>
+      </article>
+      <article class="card">
+        <h3>伴侣 B 加入</h3>
+        <div class="grid two compact">
+          <div><label for="joinCode">6 位邀请码</label><input id="joinCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>
+          <div><label for="joinPin">PIN</label><input id="joinPin" type="password" inputmode="numeric" minlength="6" maxlength="12" autocomplete="current-password"></div>
+        </div>
+        <div class="button-row"><button id="joinSessionBtn" class="button primary" type="button">以伴侣 B 加入</button></div>
+      </article>
+      <article id="activeSession" class="card" hidden>
+        <h3>当前会话</h3>
+        <dl class="session-facts">
+          <div><dt>邀请码</dt><dd id="activeCode">—</dd></div>
+          <div><dt>我的角色</dt><dd id="activeRole">—</dd></div>
+          <div><dt>A</dt><dd id="submitA">未提交</dd></div>
+          <div><dt>B</dt><dd id="submitB">未提交</dd></div>
+        </dl>
+        <div class="button-row">
+          <button id="refreshSessionBtn" class="button" type="button">刷新</button>
+          <button id="copyCodeBtn" class="button" type="button">复制邀请码</button>
+          <button id="leaveSessionBtn" class="button" type="button">离开</button>
+          <button id="deleteSessionBtn" class="button danger" type="button">删除云端会话</button>
+        </div>
+      </article>
+    </div>
+    <p id="sessionMessage" class="message" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="questionnaire" class="panel" tabindex="-1">
+    <div class="section-heading">
+      <div>
+        <h2>CPQ-35 独立作答</h2>
+        <p>请根据你和伴侣通常如何处理关系问题作答，而不是只针对最近一次争执。</p>
+      </div>
+      <div class="button-row">
+        <label class="sr-only" for="respondentSelect">当前作答者</label>
+        <select id="respondentSelect">
+          <option value="A">伴侣 A</option>
+          <option value="B">伴侣 B</option>
+        </select>
+        <button id="saveDraftBtn" class="button" type="button">保存草稿</button>
+        <button id="submitAnswersBtn" class="button primary" type="button">提交并锁定</button>
+        <button id="clearAnswersBtn" class="button danger" type="button">清空当前</button>
+      </div>
+    </div>
+
+    <div class="progress-grid">
+      <div class="metric"><span>A 完成度</span><strong id="progressA">0/35</strong></div>
+      <div class="metric"><span>B 完成度</span><strong id="progressB">0/35</strong></div>
+      <div class="metric"><span>当前作答者</span><strong id="currentRespondent">A</strong></div>
+      <div class="metric"><span>当前阶段</span><strong id="currentStage">问题出现时</strong></div>
+    </div>
+    <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+    <div class="stage-tabs" aria-label="CPQ 三个阶段">
+      <button class="stage active" data-stage="emergence" type="button">问题出现时 · 4</button>
+      <button class="stage" data-stage="discussion" type="button">讨论问题时 · 18</button>
+      <button class="stage" data-stage="after" type="button">讨论结束后 · 13</button>
+    </div>
+
+    <p class="scale-instruction"><strong>作答尺度：</strong>1 = 非常不可能，9 = 非常可能。请选择最接近实际情况的数字。</p>
+    <div id="questions"></div>
+    <p id="questionnaireMessage" class="message" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="results" class="panel" tabindex="-1">
+    <div class="section-heading">
+      <div><h2>Revised CPQ 标准计分</h2><p>双方完成并提交后才计算；三个分量表均使用题目加总分。</p></div>
+      <button id="exportBtn" class="button primary" type="button" disabled>导出结果 JSON</button>
+    </div>
+    <div id="resultGate" class="callout">等待 A、B 双方完成并提交全部 35 题。</div>
+    <div id="resultContent" hidden>
+      <article class="card table-card">
+        <h3>两位作答者的标准分量表</h3>
+        <table>
+          <thead><tr><th scope="col">分量表</th><th scope="col">理论范围</th><th scope="col">伴侣 A</th><th scope="col">伴侣 B</th></tr></thead>
+          <tbody id="scoreRows"></tbody>
+        </table>
+      </article>
+      <article class="card table-card">
+        <h3>同一互动方向的双方报告</h3>
+        <p>这里并排展示同一模式的两份报告，不把它们平均成一个“关系总分”。差值只表示报告差异。</p>
+        <table>
+          <thead><tr><th scope="col">互动方向</th><th scope="col">A 的报告</th><th scope="col">B 的报告</th><th scope="col">绝对差</th></tr></thead>
+          <tbody id="comparisonRows"></tbody>
+        </table>
+      </article>
+      <aside class="callout"><strong>如何阅读：</strong>建设性沟通分数越高，报告的建设性沟通越多；要求／回避分数越高，报告的对应模式越多。CPQ 本身不提供用于判断“健康／不健康”的统一临床分界。</aside>
+    </div>
+  </section>
+
+  <section id="observation" class="panel" tabindex="-1">
+    <div class="section-heading">
+      <div><h2>情感观察扩展</h2><p>这是独立的探索性观察模块，不属于 CPQ，也不参与 CPQ 标准计分。</p></div>
+    </div>
+    <div class="callout warning"><strong>已与 CPQ 分离：</strong>这里按状态持续时间汇总，不再把点击次数解释为情感占比，也不再声称对 CPQ 进行“交叉验证”。</div>
+    <div class="card">
+      <div class="button-row">
+        <label for="observationPerson">当前编码对象</label>
+        <select id="observationPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
+        <button id="stopObservationBtn" class="button" type="button">结束当前状态</button>
+        <button id="clearObservationBtn" class="button danger" type="button">清空观察</button>
+      </div>
+      <div id="affectButtons" class="affect-grid"></div>
+    </div>
+    <div class="grid two">
+      <article class="card"><h3>A 的时长分布</h3><div id="durationA"></div></article>
+      <article class="card"><h3>B 的时长分布</h3><div id="durationB"></div></article>
+    </div>
+    <article class="card"><h3>状态时间轴</h3><div id="observationTimeline" class="timeline"></div></article>
+  </section>
+
+  <section id="methods" class="panel" tabindex="-1">
+    <div class="grid two">
+      <article class="card">
+        <h2>标准结构</h2>
+        <ul>
+          <li>35 题：4 + 18 + 13 三阶段。</li>
+          <li>每题 1（非常不可能）到 9（非常可能）。</li>
+          <li>两位伴侣分别、独立作答同一套自我／伴侣题面。</li>
+          <li>只有全部 35 题完成后才生成分数。</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>Revised scoring</h2>
+        <ul>
+          <li>建设性沟通：2、6、8、23、25、27，加反向计分的 1、24、26；范围 9–81。</li>
+          <li>自己要求／伴侣回避：3、9、11、13、17、19、32；范围 7–63。</li>
+          <li>伴侣要求／自己回避：4、10、12、14、18、20、33；范围 7–63。</li>
+          <li>反向计分公式：10 − 原始作答；分量表采用加总分。</li>
+        </ul>
+      </article>
+    </div>
+    <article class="card references">
+      <h2>来源</h2>
+      <ol>
+        <li>Christensen, A., &amp; Sullaway, M. (1984). <em>Communication Patterns Questionnaire</em>.</li>
+        <li>Crenshaw, A. O., Christensen, A., Baucom, D. H., Epstein, N. B., &amp; Baucom, B. R. W. (2017). Revised scoring and improved reliability for the Communication Patterns Questionnaire. <em>Psychological Assessment, 29</em>(7), 913–925. <a href="https://doi.org/10.1037/pas0000385">https://doi.org/10.1037/pas0000385</a></li>
+      </ol>
+    </article>
+    <aside class="callout danger-note"><strong>安全提示：</strong>CPQ 完整题组包含身体攻击行为题目，但它不是专门的暴力风险筛查。如果现实中存在即时人身危险，请优先寻求当地紧急服务和可信支持。</aside>
+  </section>
+
+  <footer>CPQ-35 WebUI · standard scoring core · optional observation module</footer>
+</main>
+<script src="supabase-config.js"></script>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>
