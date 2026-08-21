@@ -1,6 +1,6 @@
 # CPQ-35 双人沟通模式问卷 WebUI
 
-这是一个静态、local-first 的 CPQ-35 双人作答界面。核心计分采用 Crenshaw 等（2017）的 revised scoring，并把可选的情感观察功能明确放在 CPQ 标准计分之外。
+这是一个静态、local-first 的 CPQ-35 双人作答界面。核心计分采用 Crenshaw 等（2017）的 revised scoring；ECR-R、DCI 适配器、情感观察和纵向分析均保持为独立模块。
 
 ## 当前实现
 
@@ -15,6 +15,9 @@
 - 预留固定期限法律离婚概率接口；没有通过独立外部验证并人工批准的模型配置时，页面只显示“不可计算”，不会伪造百分比。
 - 可选宏观情感观察按状态持续时间统计；另含 SPAFF-informed 9 维整体评级。二者均不参与 CPQ 分数。
 - Web Crypto 自动生成 10 位数字 PIN，并支持会话内复制；明文 PIN 不写入本地持久存储。
+- ECR-R 36题双人独立作答，按官方反向键分别报告 1–7 的依恋焦虑与依恋回避连续维度。
+- DCI-37 授权题库适配器；默认公开配置不含受限题面，但允许录入合法施测后得到的12项正式分量表结果。
+- 下载带匿名情侣编号、日期和时间点的本地纵向 JSON；一次上传最多200个文件、累计最多1000个时间点，在浏览器本地生成变化表。
 
 ## Revised CPQ 计分
 
@@ -56,6 +59,16 @@ node cpq-model.test.mjs
 PIN 生成器的浏览器测试位于 `security-utils.test.html`；自动 PIN、SPAFF-informed 评级状态和 390px 移动端溢出检查位于 `ui-smoke.test.html`。启动本地服务器后访问页面，看到 `PASS` 即表示相应测试通过。
 
 研究派生指标和概率模型门控测试位于 `relationship-research.test.html`。
+
+ECR-R 官方示例计分、DCI 授权门控／范围校验、纵向记录验证和变化计算位于 `supplemental-model.test.html`；实际下载、多文件上传和本地趋势 UI 测试位于 `longitudinal-ui.test.html`。
+
+## ECR-R、DCI 与本地纵向档案
+
+ECR-R 使用量表作者公开的36个英文题面和7点评分。焦虑为第1–18题均值，反向题为9、11；回避为第19–36题均值，反向题为20、22、26、27、28、29、30、31、33、34、35、36。中文只作为未验证的阅读辅助，不应被描述为已完成中文测量等值性验证。网站不使用任意阈值把连续分数转换成四类依恋风格。
+
+DCI 的默认 `dci-config.js` 为空。若已获得允许网页施测的正式版本，可按 `dci-config.example.js` 配置恰好37个题目、分量表键和反向键；运行时只有 `authorizationConfirmed: true` 且结构完整时才显示题面。没有题库时，页面只接受按正式手册得到的分量表原始分和总分，不反推或生成受限题目。
+
+纵向导出使用 `cpq-couple-longitudinal/1.0` 架构，保留测量版本、双方原始答案、分量表结果、观察数据、匿名情侣编号、ISO日期和时间点标签。上传分析不使用网络请求，也不写入浏览器永久存储；刷新页面会清空已载入档案，原始下载文件仍由用户自行保管。下载文件包含敏感原始答案且未加密，应保存在受控设备或加密磁盘中。变化值只是首末有效时间点的描述差，不代表统计显著性、临床改善或关系结局。
 
 ## 沟通压力研究指数与离婚模型
 
@@ -101,3 +114,7 @@ PIN 生成器的浏览器测试位于 `security-utils.test.html`；自动 PIN、
 Crenshaw, A. O., Christensen, A., Baucom, D. H., Epstein, N. B., & Baucom, B. R. W. (2017). Revised scoring and improved reliability for the Communication Patterns Questionnaire. *Psychological Assessment, 29*(7), 913–925. https://doi.org/10.1037/pas0000385
 
 Joel, S., Eastwick, P. W., Allison, C. J., et al. (2020). Machine learning uncovers the most robust self-report predictors of relationship quality across 43 longitudinal couples studies. *PNAS, 117*, 19061–19071. https://doi.org/10.1073/pnas.1917036117
+
+Fraley, R. C., Waller, N. G., & Brennan, K. A. (2000). An item response theory analysis of self-report measures of adult attachment. *Journal of Personality and Social Psychology, 78*(2), 350–365. https://doi.org/10.1037/0022-3514.78.2.350
+
+Gmelch, S., Bodenmann, G., Meuwly, N., Ledermann, T., Steffen-Sozinova, O., & Striegl, K. (2008). Dyadisches Coping Inventar (DCI). *Journal of Family Research, 20*(2), 185–202. https://doi.org/10.20377/jfr-264

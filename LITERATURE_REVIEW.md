@@ -13,6 +13,8 @@ CPQ-35 适合描述双方报告的建设性沟通和要求／回避模式，但�
 5. 把亲密伴侣暴力与即时安全完全独立处理；
 6. 在多个时间点重复测量，而不是从一次横断面分数预测未来。
 
+当前实现已经把 ECR-R 作为依恋背景维度、把 DCI 作为压力适应层，并增加本地纵向档案导入。它们不会与 CPQ 合成总分：ECR-R 更接近相对稳定的个体脆弱性，DCI 和 CPQ 更接近可变化的适应过程，满意度／承诺仍是尚待补入的关系评价层。
+
 Joel 等（2020）汇总 43 个纵向情侣数据集、11,196 对伴侣。关系特异变量能够解释相当一部分当前关系质量，但各种自陈变量的组合仍难以预测谁的关系质量之后会上升或下降。这直接反对从一次 CPQ 作答生成未经纵向验证的“感情发展概率”。
 
 ## 当前实现：描述指数与真实概率严格分离
@@ -51,12 +53,13 @@ Johnson（2002）对 SPAFF 的心理测量研究发现，多个具体代码存�
 | 主要结局 | Couples Satisfaction Index（CSI-32/16/4） | 当前关系满意度 | 优先新增，作为重复随访结局 | 不能把单次分数当未来结局 |
 | 承诺机制 | Investment Model Scale（IMS） | 满意、替代选择、投入、承诺 | 与 CPQ 并列的解释变量 | 构念相关但不可与满意度合成总分 |
 | 依恋背景 | ECR-R | 依恋焦虑与回避 | 调节变量或分层变量 | 是个体倾向，不是关系健康诊断 |
+| 压力适应 | Dyadic Coping Inventory（DCI） | 压力沟通、支持性／委托式／消极／共同应对 | 已实现授权适配器和正式分数录入 | 题本、计分键和常模需匹配获准版本 |
 | 近端稳定性 | Marital Instability Index | 分居／离婚想法与行动 | 仅用于明确同意的纵向研究 | 主要面向婚姻且题目敏感 |
 | 简短满意度备选 | Relationship Assessment Scale（RAS） | 总体关系评价 | 时间极短时的备选 | 若可使用 CSI，不建议重复堆叠 |
 | 安全域 | CTS2 或经本地验证的 IPV 筛查 | 谈判、心理攻击、身体伤害等 | 必须独立于“关系预测” | 需要安全处置流程，不可由正向分数抵消 |
 | 行为观察 | 正式 SPAFF 或预注册改编 | 冲突中的具体情感／行为 | 独立观察层 | 依赖训练、录像质量和一致性 |
 
-不建议第一阶段同时塞入全部量表。更合理的最小扩展包是 **CPQ-35 + CSI-16 + IMS + 重复随访**；ECR-R、SPAFF 和安全筛查按研究问题、伦理审批和资源分模块加入。
+不建议把全部量表合成单一分数。当前项目已加入 **CPQ-35 + ECR-R + DCI接口 + 重复随访档案**；下一优先级仍应是 CSI-16 与 IMS，因为满意度和承诺是区别于依恋、沟通和共同应对的独立预测层。
 
 ## “预测感情发展”的正确建模方向
 
@@ -106,6 +109,7 @@ Johnson（2002）对 SPAFF 的心理测量研究发现，多个具体代码存�
 - Booth, A., Johnson, D., & Edwards, J. N. (1983). Measuring marital instability. *Journal of Marriage and the Family, 45*, 387–394. https://doi.org/10.2307/351516
 - Carrère, S., & Gottman, J. M. (1999). Predicting divorce among newlyweds from the first three minutes of a marital conflict discussion. *Family Process, 38*, 293–301. https://doi.org/10.1111/j.1545-5300.1999.00293.x
 - Fraley, R. C., Waller, N. G., & Brennan, K. A. (2000). An item response theory analysis of self-report measures of adult attachment. *Journal of Personality and Social Psychology, 78*, 350–365. https://doi.org/10.1037/0022-3514.78.2.350
+- Gmelch, S., Bodenmann, G., Meuwly, N., Ledermann, T., Steffen-Sozinova, O., & Striegl, K. (2008). Dyadisches Coping Inventar (DCI): Ein Fragebogen zur Erfassung des partnerschaftlichen Umgangs mit Stress. *Journal of Family Research, 20*, 185–202. https://doi.org/10.20377/jfr-264
 - Funk, J. L., & Rogge, R. D. (2007). Testing the ruler with item response theory: Increasing precision of measurement for relationship satisfaction with the Couples Satisfaction Index. *Journal of Family Psychology, 21*, 572–583. https://doi.org/10.1037/0893-3200.21.4.572
 - Gottman, J. M., Coan, J., Carrere, S., & Swanson, C. (1998). Predicting marital happiness and stability from newlywed interactions. *Journal of Marriage and the Family, 60*, 5–22. https://doi.org/10.2307/353438
 - Heyman, R. E. (2001). Observation of couple conflicts: Clinical assessment applications, stubborn truths, and shaky foundations. *Psychological Assessment, 13*, 5–35. https://doi.org/10.1037/1040-3590.13.1.5

@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Longitudinal UI tests</title>
+<pre id="result">RUNNING</pre>
+<iframe id="app" src="./index.html" title="Test app"></iframe>
+<script type="module">
+  import { LONGITUDINAL_SCHEMA } from './longitudinal-model.mjs';
+
+  const result = document.querySelector('#result');
+  const frame = document.querySelector('#app');
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+  const waitFor = async predicate => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('timed out');
+  };
+
+  frame.addEventListener('load', async () => {
+    try {
+      const doc = frame.contentDocument;
+      await waitFor(() => doc.querySelectorAll('#dciScoreGrid input').length === 12);
+      doc.querySelector('#coupleResearchId').value = 'study_001';
+      doc.querySelector('#assessmentDate').value = '2026-08-21';
+      doc.querySelector('#timepointLabel').value = 'baseline';
+      const totalInput = [...doc.querySelectorAll('#dciScoreGrid input')].find(input => input.getAttribute('aria-label').includes('DCI 总分'));
+      totalInput.value = '100';
+      totalInput.dispatchEvent(new Event('change', { bubbles: true }));
+      const originalAnchorClick = frame.contentWindow.HTMLAnchorElement.prototype.click;
+      const originalCreateObjectUrl = frame.contentWindow.URL.createObjectURL;
+      let exportedBlob = null;
+      frame.contentWindow.HTMLAnchorElement.prototype.click = () => {};
+      frame.contentWindow.URL.createObjectURL = blob => {
+        exportedBlob = blob;
+        return 'blob:synthetic-test-only';
+      };
+      doc.querySelector('#exportLongitudinalBtn').click();
+      frame.contentWindow.HTMLAnchorElement.prototype.click = originalAnchorClick;
+      frame.contentWindow.URL.createObjectURL = originalCreateObjectUrl;
+      assert(doc.querySelector('#longitudinalExportMessage').textContent.includes('已下载'), 'local export');
+      const exported = JSON.parse(await exportedBlob.text());
+      assert(exported.schema === LONGITUDINAL_SCHEMA, 'export schema');
+      assert(exported.assessment.coupleId === 'study_001', 'export metadata');
+      assert(exported.measures.dci.scores.A.totalWithoutEvaluation === 100, 'exported DCI score');
+
+      const record = (date, strain) => ({
+        schema: LONGITUDINAL_SCHEMA,
+        assessment: { coupleId: 'study_001', date, timepoint: date },
+        measures: { cpq: { communicationStrain: { value: strain } } }
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([JSON.stringify(record('2026-01-01', 30))], 't1.json', { type: 'application/json' }));
+      transfer.items.add(new File([JSON.stringify(record('2026-03-01', 40))], 't2.json', { type: 'application/json' }));
+      const input = doc.querySelector('#longitudinalFiles');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitFor(() => doc.querySelectorAll('#longitudinalRows tr').length === 2);
+      assert(doc.querySelector('#longitudinalImportMessage').textContent.includes('2 个有效时间点'), 'multi-file local import');
+      assert(doc.querySelector('#longitudinalChanges').textContent.includes('+10'), 'local trend calculation');
+      result.textContent = 'PASS';
+    } catch (error) {
+      result.textContent = `FAIL: ${error.message}`;
+    }
+  }, { once: true });
+</script>

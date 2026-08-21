@@ -8,12 +8,30 @@ import {
 } from './cpq-model.mjs';
 import { generateNumericPin } from './security-utils.mjs';
 import { computeCommunicationStrain, evaluateDivorceProbability } from './relationship-research.mjs';
+import {
+  DCI_SCORE_FIELDS,
+  ECR_R_ITEMS,
+  ECR_R_VERSION,
+  blankDciScores,
+  blankEcrAnswers,
+  inspectEcrAnswers,
+  scoreAuthorizedDci,
+  scoreEcrR,
+  validateDciItemBank,
+  validateDciScores
+} from './supplemental-model.mjs';
+import {
+  LONGITUDINAL_SCHEMA,
+  buildLongitudinalDataset,
+  summarizeChange
+} from './longitudinal-model.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const blankAnswers = () => Array(35).fill(null);
 const cfg = window.CPQ_SUPABASE || {};
 const divorceModelConfig = window.CPQ_DIVORCE_MODEL || null;
+const dciItemBank = window.CPQ_DCI_ITEM_BANK || null;
 
 const AFFECT_CODES = Object.freeze({
   positive: { label: '积极情感', detail: '温暖、关爱或愉悦' },
@@ -36,6 +54,7 @@ const SPAFF_INFORMED_DIMENSIONS = Object.freeze({
 });
 
 const blankSpaffRatings = () => Object.fromEntries(Object.keys(SPAFF_INFORMED_DIMENSIONS).map(code => [code, null]));
+const blankDciAnswers = () => Array(37).fill(null);
 
 const state = {
   respondent: 'A',
@@ -44,7 +63,15 @@ const state = {
   submitted: { A: false, B: false },
   session: { mode: 'local', code: null, role: null, token: null, invitePin: null },
   events: [],
-  spaffRatings: { A: blankSpaffRatings(), B: blankSpaffRatings() }
+  spaffRatings: { A: blankSpaffRatings(), B: blankSpaffRatings() },
+  ecrPerson: 'A',
+  ecrAnswers: { A: blankEcrAnswers(), B: blankEcrAnswers() },
+  ecrSubmitted: { A: false, B: false },
+  dciPerson: 'A',
+  dciAnswers: { A: blankDciAnswers(), B: blankDciAnswers() },
+  dciSubmitted: { A: false, B: false },
+  dciScores: { A: blankDciScores(), B: blankDciScores() },
+  importedRecords: []
 };
 
 let draftTimer = null;
@@ -89,8 +116,25 @@ function resetAssessment(mode = 'local') {
   state.stage = 'emergence';
   state.events = [];
   state.spaffRatings = { A: blankSpaffRatings(), B: blankSpaffRatings() };
+  state.ecrPerson = 'A';
+  state.ecrAnswers = { A: blankEcrAnswers(), B: blankEcrAnswers() };
+  state.ecrSubmitted = { A: false, B: false };
+  state.dciPerson = 'A';
+  state.dciAnswers = { A: blankDciAnswers(), B: blankDciAnswers() };
+  state.dciSubmitted = { A: false, B: false };
+  state.dciScores = { A: blankDciScores(), B: blankDciScores() };
   if (mode === 'local') state.session = { mode: 'local', code: null, role: null, token: null, invitePin: null };
   renderAll();
+}
+
+function hasCurrentAssessmentData() {
+  return Boolean(
+    inspectAnswers(state.answers.A).answered || inspectAnswers(state.answers.B).answered ||
+    inspectEcrAnswers(state.ecrAnswers.A).answered || inspectEcrAnswers(state.ecrAnswers.B).answered ||
+    state.dciAnswers.A.some(Number.isFinite) || state.dciAnswers.B.some(Number.isFinite) ||
+    Object.values(state.dciScores).some(scores => Object.values(scores).some(Number.isFinite)) ||
+    state.events.length || Object.values(state.spaffRatings).some(ratings => Object.values(ratings).some(Number.isFinite))
+  );
 }
 
 function allowedRespondent(person) {
@@ -180,6 +224,193 @@ function renderQuestions() {
   $$('.stage').forEach(button => button.classList.toggle('active', button.dataset.stage === state.stage));
   renderProgress();
   if (locked) setMessage('#questionnaireMessage', `伴侣 ${state.respondent} 的答案已提交并锁定。`);
+}
+
+function makeEcrQuestion(item, person, locked) {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'question question-inner';
+  fieldset.disabled = locked;
+  const legend = document.createElement('legend');
+  const head = document.createElement('div');
+  head.className = 'question-head';
+  const number = document.createElement('span');
+  number.className = 'question-number';
+  number.textContent = item.id;
+  const wording = document.createElement('span');
+  const zh = document.createElement('span');
+  zh.className = 'question-zh';
+  zh.textContent = item.zh;
+  const en = document.createElement('span');
+  en.className = 'question-en';
+  en.textContent = item.en;
+  wording.append(zh, en);
+  head.append(number, wording);
+  legend.append(head);
+  fieldset.append(legend);
+  const scale = document.createElement('div');
+  scale.className = 'likert seven';
+  scale.setAttribute('role', 'radiogroup');
+  for (let value = 1; value <= 7; value += 1) {
+    const label = document.createElement('label');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = `ecr-${person}-q${item.id}`;
+    radio.value = String(value);
+    radio.checked = state.ecrAnswers[person][item.id - 1] === value;
+    radio.addEventListener('change', () => {
+      state.ecrAnswers[person][item.id - 1] = value;
+      renderEcrProgress();
+    });
+    const text = document.createElement('span');
+    text.textContent = String(value);
+    label.append(radio, text);
+    scale.append(label);
+  }
+  fieldset.append(scale);
+  return fieldset;
+}
+
+function renderEcrProgress() {
+  for (const person of ['A', 'B']) {
+    const inspection = inspectEcrAnswers(state.ecrAnswers[person]);
+    $(`#ecrProgress${person}`).textContent = `${inspection.answered}/36${state.ecrSubmitted[person] ? ' · 已锁定' : ''}`;
+  }
+}
+
+function renderEcr() {
+  const person = state.ecrPerson;
+  const locked = state.ecrSubmitted[person];
+  $('#ecrPerson').value = person;
+  $('#submitEcrBtn').disabled = locked;
+  $('#clearEcrBtn').disabled = locked;
+  $('#ecrQuestions').replaceChildren(...ECR_R_ITEMS.map(item => makeEcrQuestion(item, person, locked)));
+  renderEcrProgress();
+  const scores = { A: scoreEcrR(state.ecrAnswers.A), B: scoreEcrR(state.ecrAnswers.B) };
+  const ready = state.ecrSubmitted.A && state.ecrSubmitted.B && scores.A.complete && scores.B.complete;
+  $('#ecrResults').hidden = !ready;
+  if (ready) {
+    for (const target of ['A', 'B']) {
+      $(`#ecrAnxiety${target}`).textContent = scores[target].anxiety.toFixed(2);
+      $(`#ecrAvoidance${target}`).textContent = scores[target].avoidance.toFixed(2);
+    }
+  }
+  setMessage('#ecrMessage', locked ? `伴侣 ${person} 的 ECR-R 已提交并锁定。` : '');
+}
+
+function submitEcr() {
+  const person = state.ecrPerson;
+  const inspection = inspectEcrAnswers(state.ecrAnswers[person]);
+  if (!inspection.complete) {
+    setMessage('#ecrMessage', inspection.invalid.length ? `存在非法题值：${inspection.invalid.join('、')}。` : `还有 ${inspection.missing.length} 题未完成。`);
+    return;
+  }
+  state.ecrSubmitted[person] = true;
+  if (person === 'A' && !state.ecrSubmitted.B) state.ecrPerson = 'B';
+  renderEcr();
+  setMessage('#ecrMessage', person === 'A' ? 'A 已提交并锁定；现在请由伴侣 B 独立作答。' : 'B 已提交并锁定；双方 ECR-R 连续维度结果已解锁。');
+}
+
+function makeDciQuestion(item, person, locked) {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'question question-inner';
+  fieldset.disabled = locked;
+  const legend = document.createElement('legend');
+  legend.textContent = `${item.id}. ${item.text}`;
+  fieldset.append(legend);
+  const scale = document.createElement('div');
+  scale.className = 'likert five';
+  scale.setAttribute('role', 'radiogroup');
+  for (let value = 1; value <= 5; value += 1) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = `dci-${person}-q${item.id}`;
+    input.value = String(value);
+    input.checked = state.dciAnswers[person][item.id - 1] === value;
+    input.addEventListener('change', () => { state.dciAnswers[person][item.id - 1] = value; });
+    const text = document.createElement('span');
+    text.textContent = String(value);
+    label.append(input, text);
+    scale.append(label);
+  }
+  fieldset.append(scale);
+  return fieldset;
+}
+
+function renderDciTotals() {
+  for (const person of ['A', 'B']) {
+    const validation = validateDciScores(state.dciScores[person]);
+    const total = validation.valid ? validation.scores.totalWithoutEvaluation : null;
+    $(`#dciTotal${person}`).textContent = Number.isFinite(total) ? `${total}/175` : '—';
+  }
+}
+
+function renderDciManualEntry(person) {
+  const fields = Object.entries(DCI_SCORE_FIELDS).map(([key, definition]) => {
+    const wrapper = document.createElement('div');
+    const label = document.createElement('label');
+    label.textContent = definition.label;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = String(definition.min);
+    input.max = String(definition.max);
+    input.step = '1';
+    input.value = state.dciScores[person][key] ?? '';
+    input.setAttribute('aria-label', `伴侣 ${person} · ${definition.label}`);
+    const help = document.createElement('small');
+    help.textContent = `允许范围 ${definition.min}–${definition.max}`;
+    input.addEventListener('change', event => {
+      const raw = event.target.value;
+      state.dciScores[person][key] = raw === '' ? null : Number(raw);
+      const validation = validateDciScores(state.dciScores[person]);
+      event.target.setAttribute('aria-invalid', String(!validation.valid && validation.invalid.includes(key)));
+      setMessage('#dciMessage', validation.valid ? 'DCI 分量表结果已保留在当前页面；下载纵向档案以保存。' : `超出允许范围：${validation.invalid.map(field => DCI_SCORE_FIELDS[field].label).join('、')}。`);
+      renderDciTotals();
+    });
+    wrapper.append(label, input, help);
+    return wrapper;
+  });
+  $('#dciScoreGrid').replaceChildren(...fields);
+}
+
+function renderDci() {
+  const person = state.dciPerson;
+  $('#dciPerson').value = person;
+  const bank = validateDciItemBank(dciItemBank);
+  $('#dciQuestions').hidden = !bank.valid;
+  $('#dciManualEntry').hidden = bank.valid;
+  $('#submitDciBtn').hidden = !bank.valid;
+  if (bank.valid) {
+    $('#dciStatus').classList.remove('warning');
+    $('#dciStatus').textContent = `已加载 ${bank.version}（${bank.language}）授权题库。1 = 非常少，5 = 非常经常；请独立作答。`;
+    const locked = state.dciSubmitted[person];
+    $('#submitDciBtn').disabled = locked;
+    $('#dciQuestions').replaceChildren(...[...dciItemBank.items].sort((a, b) => a.id - b.id).map(item => makeDciQuestion(item, person, locked)));
+  } else {
+    $('#dciStatus').classList.add('warning');
+    $('#dciStatus').textContent = '未加载获准部署的 DCI 题库：公开网站仅提供正式分量表结果录入和纵向保存。';
+    renderDciManualEntry(person);
+  }
+  renderDciTotals();
+}
+
+function submitDci() {
+  const person = state.dciPerson;
+  const result = scoreAuthorizedDci(state.dciAnswers[person], dciItemBank);
+  if (!result.complete) {
+    setMessage('#dciMessage', result.reason);
+    return;
+  }
+  state.dciScores[person] = { ...blankDciScores(), ...result.scores };
+  state.dciSubmitted[person] = true;
+  if (person === 'A' && !state.dciSubmitted.B) state.dciPerson = 'B';
+  renderDci();
+  setMessage('#dciMessage', person === 'A' ? 'A 的 DCI 已提交；现在请由伴侣 B 独立作答。' : 'B 的 DCI 已提交；双方结果已保存到当前页面。');
+}
+
+function renderSupplements() {
+  renderEcr();
+  renderDci();
 }
 
 function renderSession() {
@@ -476,38 +707,219 @@ async function deleteCloudSession() {
   }
 }
 
-function exportResults() {
+function currentCpqMeasure() {
   const dyad = scoreDyad(state.answers.A, state.answers.B);
-  if (!dyad.complete || !state.submitted.A || !state.submitted.B) return;
+  if (!dyad.complete || !state.submitted.A || !state.submitted.B) return null;
   const communicationStrain = computeCommunicationStrain(dyad);
   const divorceProbability = evaluateDivorceProbability(
     { cpqCommunicationStrain: communicationStrain.value },
     divorceModelConfig
   );
-  const payload = {
-    schemaVersion: '2.2',
-    instrument: CPQ_VERSION,
+  const scores = {
+    A: {
+      ...dyad.A.scores,
+      demandWithdrawMean: (dyad.A.scores.selfDemandPartnerWithdraw + dyad.A.scores.partnerDemandSelfWithdraw) / 2
+    },
+    B: {
+      ...dyad.B.scores,
+      demandWithdrawMean: (dyad.B.scores.selfDemandPartnerWithdraw + dyad.B.scores.partnerDemandSelfWithdraw) / 2
+    }
+  };
+  return {
+    version: CPQ_VERSION,
     scoring: 'Crenshaw et al. (2017), summed subscales; items 1, 24, and 26 reverse-scored as 10 - response',
     answers: state.answers,
-    scores: { A: dyad.A.scores, B: dyad.B.scores },
+    scores,
     pairedReports: dyad.comparisons,
-    derivedResearch: {
-      communicationStrain,
-      divorceProbability
-    },
-    observation: {
-      macroAffectEvents: state.events,
-      spaffInformedRatings: state.spaffRatings,
-      status: 'Exploratory only; not a complete or validated SPAFF implementation'
-    },
-    exportedAt: new Date().toISOString()
+    communicationStrain,
+    divorceProbability
   };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+}
+
+function assessmentMetadata() {
+  const coupleId = $('#coupleResearchId').value.trim();
+  const date = $('#assessmentDate').value;
+  const timepoint = $('#timepointLabel').value.trim();
+  const errors = [];
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$/.test(coupleId)) errors.push('匿名情侣编号需为 3–64 位字母、数字、下划线或连字符');
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) errors.push('请选择有效测量日期');
+  if (!timepoint || timepoint.length > 80) errors.push('请输入 1–80 字的时间点标签');
+  return { valid: !errors.length, errors, value: { coupleId, date, timepoint } };
+}
+
+function currentLongitudinalRecord() {
+  const metadata = assessmentMetadata();
+  if (!metadata.valid) return { valid: false, errors: metadata.errors };
+  const cpq = currentCpqMeasure();
+  const ecrScores = Object.fromEntries(['A', 'B'].map(person => {
+    const score = state.ecrSubmitted[person] ? scoreEcrR(state.ecrAnswers[person]) : null;
+    return [person, score?.complete ? score : null];
+  }));
+  const dciValidated = Object.fromEntries(['A', 'B'].map(person => [person, validateDciScores(state.dciScores[person])]));
+  const invalidDci = ['A', 'B'].filter(person => !dciValidated[person].valid);
+  if (invalidDci.length) return { valid: false, errors: [`伴侣 ${invalidDci.join('、')} 的 DCI 分数超出允许范围`] };
+  const dciScores = Object.fromEntries(['A', 'B'].map(person => [person, dciValidated[person].available ? dciValidated[person].scores : null]));
+  const hasEcr = Object.values(ecrScores).some(Boolean);
+  const hasDci = Object.values(dciScores).some(Boolean);
+  const hasObservation = Boolean(state.events.length || Object.values(state.spaffRatings).some(ratings => Object.values(ratings).some(Number.isFinite)));
+  if (!cpq && !hasEcr && !hasDci && !hasObservation) return { valid: false, errors: ['至少需要一项已完成测量或观察记录'] };
+  const dciBankValidation = validateDciItemBank(dciItemBank);
+  return {
+    valid: true,
+    record: {
+      schema: LONGITUDINAL_SCHEMA,
+      assessment: metadata.value,
+      measures: {
+        cpq,
+        ecrR: {
+          version: ECR_R_VERSION,
+          scores: ecrScores,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, ecrScores[person] ? state.ecrAnswers[person] : null])),
+          languageStatus: 'Official English wording with non-validated Chinese reading aid'
+        },
+        dci: {
+          version: dciBankValidation.valid ? dciItemBank.version : 'DCI-37 manual scored-result entry',
+          scores: dciScores,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, state.dciSubmitted[person] ? state.dciAnswers[person] : null])),
+          itemBankBundled: dciBankValidation.valid
+        },
+        observation: {
+          macroAffectEvents: state.events,
+          spaffInformedRatings: state.spaffRatings,
+          status: 'Exploratory only; not a complete or validated SPAFF implementation'
+        }
+      },
+      exportedAt: new Date().toISOString()
+    }
+  };
+}
+
+function downloadJson(record) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'cpq-35-results.json';
+  link.download = `cpq-longitudinal-${record.assessment.coupleId}-${record.assessment.date}.json`;
+  link.hidden = true;
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function exportLongitudinalRecord() {
+  const result = currentLongitudinalRecord();
+  if (!result.valid) {
+    setMessage('#longitudinalExportMessage', result.errors.join('；'));
+    return false;
+  }
+  downloadJson(result.record);
+  setMessage('#longitudinalExportMessage', '档案已下载到本机；本站不会保留副本。');
+  return true;
+}
+
+function exportResults() {
+  if (!currentCpqMeasure()) return;
+  if (!exportLongitudinalRecord()) activateTab('longitudinal');
+}
+
+const LONGITUDINAL_METRICS = Object.freeze({
+  communicationStrain: '沟通压力',
+  ecrAnxietyA: 'A 依恋焦虑',
+  ecrAnxietyB: 'B 依恋焦虑',
+  ecrAvoidanceA: 'A 依恋回避',
+  ecrAvoidanceB: 'B 依恋回避',
+  dciTotalA: 'A DCI 总分',
+  dciTotalB: 'B DCI 总分'
+});
+
+function formatMetric(value) {
+  return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : '—';
+}
+
+function renderLongitudinal() {
+  const dataset = buildLongitudinalDataset(state.importedRecords);
+  const ready = dataset.accepted.length > 0;
+  $('#longitudinalResults').hidden = !ready;
+  if (!ready) return;
+  const previous = $('#longitudinalCouple').value;
+  const coupleIds = [...new Set(dataset.accepted.map(point => point.coupleId))];
+  $('#longitudinalCouple').replaceChildren(...coupleIds.map(coupleId => {
+    const option = document.createElement('option');
+    option.value = coupleId;
+    option.textContent = coupleId;
+    return option;
+  }));
+  $('#longitudinalCouple').value = coupleIds.includes(previous) ? previous : coupleIds[0];
+  const selected = $('#longitudinalCouple').value;
+  const points = dataset.accepted.filter(point => point.coupleId === selected);
+  $('#longitudinalChanges').replaceChildren(...Object.entries(LONGITUDINAL_METRICS).map(([key, label]) => {
+    const card = document.createElement('article');
+    card.className = 'trend-card';
+    const summary = summarizeChange(points, key);
+    const heading = document.createElement('span');
+    heading.textContent = label;
+    const value = document.createElement('strong');
+    value.textContent = summary.available ? `${summary.change >= 0 ? '+' : ''}${summary.change}` : '数据不足';
+    const detail = document.createElement('small');
+    detail.textContent = summary.available ? `${summary.first} → ${summary.last} · ${summary.from} 至 ${summary.to}` : `${summary.count} 个有效时间点`;
+    card.append(heading, value, detail);
+    return card;
+  }));
+  $('#longitudinalRows').replaceChildren(...points.map(point => {
+    const row = document.createElement('tr');
+    const values = [
+      point.date,
+      point.timepoint,
+      point.metrics.communicationStrain,
+      point.metrics.ecrAnxietyA,
+      point.metrics.ecrAnxietyB,
+      point.metrics.ecrAvoidanceA,
+      point.metrics.ecrAvoidanceB,
+      point.metrics.dciTotalA,
+      point.metrics.dciTotalB
+    ];
+    values.forEach(value => {
+      const cell = document.createElement('td');
+      cell.textContent = typeof value === 'string' ? value : formatMetric(value);
+      row.append(cell);
+    });
+    return row;
+  }));
+}
+
+async function importLongitudinalFiles(fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+  if (files.length > 200) {
+    setMessage('#longitudinalImportMessage', '单次最多载入 200 个文件。');
+    return;
+  }
+  const parsed = [];
+  const fileErrors = [];
+  for (const file of files) {
+    if (file.size > 2 * 1024 * 1024) {
+      fileErrors.push(`${file.name} 超过 2 MB`);
+      continue;
+    }
+    try {
+      const value = JSON.parse(await file.text());
+      if (Array.isArray(value)) parsed.push(...value);
+      else parsed.push(value);
+    } catch (_) {
+      fileErrors.push(`${file.name} 不是有效 JSON`);
+    }
+  }
+  if (parsed.length + state.importedRecords.length > 1000) {
+    setMessage('#longitudinalImportMessage', '当前页面最多分析 1000 个时间点。');
+    return;
+  }
+  const dataset = buildLongitudinalDataset([...state.importedRecords, ...parsed]);
+  state.importedRecords = dataset.accepted.map(point => point.source);
+  renderLongitudinal();
+  const rejected = dataset.rejected.length + fileErrors.length;
+  setMessage('#longitudinalImportMessage', `已载入 ${dataset.accepted.length} 个有效时间点，拒绝 ${rejected} 个无效或重复记录。${fileErrors.length ? ` ${fileErrors.join('；')}` : ''}`);
+  $('#longitudinalFiles').value = '';
 }
 
 function closeOpenEvent(person, endMs = Date.now()) {
@@ -656,8 +1068,10 @@ function setupObservation() {
 function renderAll() {
   renderSession();
   renderQuestions();
+  renderSupplements();
   renderResults();
   renderObservation();
+  renderLongitudinal();
 }
 
 function setupActions() {
@@ -667,7 +1081,7 @@ function setupActions() {
     renderQuestions();
   }));
   $('#startLocalBtn').addEventListener('click', () => {
-    if ((inspectAnswers(state.answers.A).answered || inspectAnswers(state.answers.B).answered) && !window.confirm('开始新测评会清除当前页面中的答案。确定继续吗？')) return;
+    if (hasCurrentAssessmentData() && !window.confirm('开始新测评会清除当前页面中的 CPQ、ECR-R、DCI 和观察数据。请先下载纵向档案。确定继续吗？')) return;
     localStorage.removeItem('cpqSessionV2');
     resetAssessment('local');
     activateTab('questionnaire');
@@ -682,6 +1096,39 @@ function setupActions() {
   $('#saveDraftBtn').addEventListener('click', () => saveAnswers(false));
   $('#submitAnswersBtn').addEventListener('click', () => saveAnswers(true));
   $('#exportBtn').addEventListener('click', exportResults);
+  $('#ecrPerson').addEventListener('change', event => {
+    state.ecrPerson = event.target.value;
+    renderEcr();
+  });
+  $('#submitEcrBtn').addEventListener('click', submitEcr);
+  $('#clearEcrBtn').addEventListener('click', () => {
+    const person = state.ecrPerson;
+    if (state.ecrSubmitted[person] || !window.confirm(`确定清空伴侣 ${person} 的全部 ECR-R 答案吗？`)) return;
+    state.ecrAnswers[person] = blankEcrAnswers();
+    renderEcr();
+  });
+  $('#dciPerson').addEventListener('change', event => {
+    state.dciPerson = event.target.value;
+    renderDci();
+  });
+  $('#submitDciBtn').addEventListener('click', submitDci);
+  $('#clearDciBtn').addEventListener('click', () => {
+    const person = state.dciPerson;
+    if (!window.confirm(`确定清空伴侣 ${person} 的 DCI 答案和录入分数吗？`)) return;
+    state.dciAnswers[person] = blankDciAnswers();
+    state.dciScores[person] = blankDciScores();
+    state.dciSubmitted[person] = false;
+    renderDci();
+    setMessage('#dciMessage', `已清空伴侣 ${person} 的 DCI 数据。`);
+  });
+  $('#exportLongitudinalBtn').addEventListener('click', exportLongitudinalRecord);
+  $('#longitudinalFiles').addEventListener('change', event => importLongitudinalFiles(event.target.files));
+  $('#longitudinalCouple').addEventListener('change', renderLongitudinal);
+  $('#clearLongitudinalBtn').addEventListener('click', () => {
+    state.importedRecords = [];
+    renderLongitudinal();
+    setMessage('#longitudinalImportMessage', '已清空当前浏览器中载入的档案；原始本地文件未被删除。');
+  });
   $('#createSessionBtn').addEventListener('click', createCloudSession);
   $('#generatePinBtn').addEventListener('click', async () => {
     try {
@@ -732,6 +1179,10 @@ function setupActions() {
 setupTabs();
 setupObservation();
 setupActions();
+if (!$('#assessmentDate').value) {
+  const now = new Date();
+  $('#assessmentDate').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
 renderAll();
 if (loadSessionToken() && cloudReady()) refreshCloudSession();
 setInterval(() => {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含独立的 SPAFF-informed 情感观察研究原型。">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、DCI 接口、SPAFF-informed 观察与本地纵向分析。">
   <meta name="referrer" content="no-referrer">
   <title>CPQ-35 双人沟通模式问卷</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -33,9 +33,11 @@
   <nav class="tabs" aria-label="主功能">
     <button class="tab active" data-tab="session" type="button">01 · 测评会话</button>
     <button class="tab" data-tab="questionnaire" type="button">02 · CPQ-35</button>
-    <button class="tab" data-tab="results" type="button">03 · 标准计分</button>
-    <button class="tab" data-tab="observation" type="button">04 · 观察 / SPAFF</button>
-    <button class="tab" data-tab="methods" type="button">05 · 方法</button>
+    <button class="tab" data-tab="supplements" type="button">03 · ECR-R / DCI</button>
+    <button class="tab" data-tab="results" type="button">04 · 标准计分</button>
+    <button class="tab" data-tab="observation" type="button">05 · 观察 / SPAFF</button>
+    <button class="tab" data-tab="longitudinal" type="button">06 · 纵向档案</button>
+    <button class="tab" data-tab="methods" type="button">07 · 方法</button>
   </nav>
 
   <section id="session" class="panel active" tabindex="-1">
@@ -91,6 +93,61 @@
       </article>
     </div>
     <p id="sessionMessage" class="message" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="supplements" class="panel" tabindex="-1">
+    <div class="section-heading">
+      <div><h2>依恋与共同应对</h2><p>ECR-R 与 DCI 是 CPQ 之外的独立构念，不与 CPQ 合成总分。</p></div>
+    </div>
+    <aside class="callout warning"><strong>语言与解释边界：</strong>ECR-R 英文题面来自量表作者公开页面，中文仅为未验证的阅读辅助，正式中文研究需使用经过授权和测量等值性验证的版本。两个维度均按连续分数报告，不自动划分依恋类型。</aside>
+    <aside class="callout"><strong>本地保存：</strong>ECR-R 与 DCI 当前只保存在本页内存，不同步到 Supabase。刷新、离开云会话或开始新测评前，请到“06 · 纵向档案”下载结果。</aside>
+    <article class="card">
+      <div class="section-heading compact-heading">
+        <div><h3>ECR-R 36题</h3><p>回想你通常在情感亲密关系中的体验，而不只针对最近一次冲突。</p></div>
+        <div class="button-row">
+          <label class="sr-only" for="ecrPerson">ECR-R 当前作答者</label>
+          <select id="ecrPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
+          <button id="submitEcrBtn" class="button primary" type="button">提交当前 ECR-R</button>
+          <button id="clearEcrBtn" class="button danger" type="button">清空当前</button>
+        </div>
+      </div>
+      <div class="progress-grid supplemental-progress">
+        <div class="metric"><span>A 完成度</span><strong id="ecrProgressA">0/36</strong></div>
+        <div class="metric"><span>B 完成度</span><strong id="ecrProgressB">0/36</strong></div>
+      </div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 = 非常不同意，4 = 既不同意也不赞同，7 = 非常同意。题目顺序在本次页面中保持稳定；计分使用原始题号。</p>
+      <div id="ecrQuestions"></div>
+      <p id="ecrMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="ecrResults" class="grid two" hidden>
+        <article class="metric-card"><h4>伴侣 A</h4><p>依恋焦虑 <strong id="ecrAnxietyA">—</strong></p><p>依恋回避 <strong id="ecrAvoidanceA">—</strong></p></article>
+        <article class="metric-card"><h4>伴侣 B</h4><p>依恋焦虑 <strong id="ecrAnxietyB">—</strong></p><p>依恋回避 <strong id="ecrAvoidanceB">—</strong></p></article>
+      </div>
+      <p class="field-help">范围均为 1–7；分数较高只表示报告了更多相应倾向，不是诊断、人格标签或关系结局概率。来源：<a href="https://labs.psychology.illinois.edu/~rcfraley/measures/ecrritems.htm">Fraley, Waller, &amp; Brennan (2000)</a>。</p>
+    </article>
+
+    <article class="card">
+      <div class="section-heading compact-heading">
+        <div><h3>DCI 37题 · 授权适配器</h3><p>测量双方的压力沟通、支持性／委托式／消极／共同应对。</p></div>
+        <div class="button-row">
+          <label class="sr-only" for="dciPerson">DCI 当前作答者</label>
+          <select id="dciPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
+          <button id="submitDciBtn" class="button primary" type="button" hidden>提交当前 DCI</button>
+          <button id="clearDciBtn" class="button danger" type="button">清空当前</button>
+        </div>
+      </div>
+      <div id="dciStatus" class="callout warning"></div>
+      <div id="dciQuestions" hidden></div>
+      <div id="dciManualEntry">
+        <p>当前未加载获准公开部署的 DCI 题库。若已使用合法题本和正式计分手册完成测量，可在下方录入当前伴侣的分量表原始分；留空表示该项未测。</p>
+        <div id="dciScoreGrid" class="score-entry-grid"></div>
+      </div>
+      <p id="dciMessage" class="message" role="status" aria-live="polite"></p>
+      <div class="grid two">
+        <article class="metric-card"><h4>伴侣 A</h4><p>DCI 总分 <strong id="dciTotalA">—</strong></p></article>
+        <article class="metric-card"><h4>伴侣 B</h4><p>DCI 总分 <strong id="dciTotalB">—</strong></p></article>
+      </div>
+      <p class="field-help">总分需按正式手册处理消极题并排除第36、37评价题。网站不根据未经配置的题面推导分数，也不套用未授权常模。</p>
+    </article>
   </section>
 
   <section id="questionnaire" class="panel" tabindex="-1">
@@ -206,6 +263,48 @@
     </article>
   </section>
 
+  <section id="longitudinal" class="panel" tabindex="-1">
+    <div class="section-heading">
+      <div><h2>本地纵向档案</h2><p>下载本次结果；以后可一次上传多份 JSON，在当前浏览器中按匿名情侣编号和日期分析变化。</p></div>
+    </div>
+    <aside class="callout"><strong>隐私设计：</strong>解析完全在浏览器本地进行，选择的文件不会上传到本站。请使用研究编号，不要填写姓名、电话或身份证等直接身份信息；下载文件包含敏感原始答案且未加密，需要存放在受控设备或加密磁盘中。</aside>
+    <div class="grid two">
+      <article class="card">
+        <h3>本次测量信息</h3>
+        <div class="grid two compact">
+          <div><label for="coupleResearchId">匿名情侣编号</label><input id="coupleResearchId" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,63}" placeholder="例如 study_001"></div>
+          <div><label for="assessmentDate">测量日期</label><input id="assessmentDate" type="date"></div>
+        </div>
+        <label for="timepointLabel">时间点标签</label>
+        <input id="timepointLabel" type="text" maxlength="80" placeholder="例如 baseline、month_3">
+        <div class="button-row"><button id="exportLongitudinalBtn" class="button primary" type="button">下载本次纵向档案</button></div>
+        <p id="longitudinalExportMessage" class="message" role="status" aria-live="polite"></p>
+      </article>
+      <article class="card">
+        <h3>上传既往档案</h3>
+        <label for="longitudinalFiles">选择一个或多个 JSON 文件</label>
+        <input id="longitudinalFiles" type="file" accept="application/json,.json" multiple>
+        <div class="button-row"><button id="clearLongitudinalBtn" class="button danger" type="button">清空已载入档案</button></div>
+        <p id="longitudinalImportMessage" class="message" role="status" aria-live="polite">尚未载入档案。</p>
+      </article>
+    </div>
+    <div id="longitudinalResults" hidden>
+      <div class="button-row">
+        <label for="longitudinalCouple">当前情侣编号</label>
+        <select id="longitudinalCouple"></select>
+      </div>
+      <div id="longitudinalChanges" class="trend-grid"></div>
+      <article class="card table-card">
+        <h3>时间序列</h3>
+        <table>
+          <thead><tr><th>日期</th><th>时间点</th><th>沟通压力</th><th>A焦虑</th><th>B焦虑</th><th>A回避</th><th>B回避</th><th>A DCI</th><th>B DCI</th></tr></thead>
+          <tbody id="longitudinalRows"></tbody>
+        </table>
+      </article>
+      <aside class="callout warning"><strong>解释限制：</strong>变化值只做描述，不判断显著改善／恶化；需要足够时间点、量表测量不变性、失访处理和预注册模型后才能推断轨迹或预测结局。</aside>
+    </div>
+  </section>
+
   <section id="methods" class="panel" tabindex="-1">
     <div class="grid two">
       <article class="card">
@@ -236,6 +335,7 @@
           <tr><th scope="row">主要结局</th><td>CSI-16</td><td>重复测量关系满意度</td><td>单次分数不是未来结局</td></tr>
           <tr><th scope="row">承诺机制</th><td>Investment Model Scale</td><td>满意、替代选择、投入、承诺</td><td>不与 CPQ 合成总分</td></tr>
           <tr><th scope="row">依恋背景</th><td>ECR-R</td><td>依恋焦虑与回避</td><td>不是关系健康诊断</td></tr>
+          <tr><th scope="row">压力适应</th><td>DCI</td><td>双方如何表达和共同应对压力</td><td>正式题本与常模需授权版本</td></tr>
           <tr><th scope="row">近端稳定性</th><td>Marital Instability Index</td><td>分居／离婚想法与行动</td><td>敏感且主要面向婚姻</td></tr>
           <tr><th scope="row">安全域</th><td>CTS2／本地验证的 IPV 筛查</td><td>独立识别暴力与伤害</td><td>必须有独立安全处置流程</td></tr>
         </tbody>
@@ -254,16 +354,19 @@
         <li>Crenshaw, A. O., Christensen, A., Baucom, D. H., Epstein, N. B., &amp; Baucom, B. R. W. (2017). Revised scoring and improved reliability for the Communication Patterns Questionnaire. <em>Psychological Assessment, 29</em>(7), 913–925. <a href="https://doi.org/10.1037/pas0000385">https://doi.org/10.1037/pas0000385</a></li>
         <li>Johnson, M. D. (2002). The observation of specific affect in marital interactions. <em>Psychological Assessment, 14</em>(4), 423–438. <a href="https://doi.org/10.1037/1040-3590.14.4.423">https://doi.org/10.1037/1040-3590.14.4.423</a></li>
         <li>Joel, S., Eastwick, P. W., Allison, C. J., et al. (2020). Machine learning uncovers the most robust self-report predictors of relationship quality across 43 longitudinal couples studies. <em>PNAS, 117</em>(32), 19061–19071. <a href="https://doi.org/10.1073/pnas.1917036117">https://doi.org/10.1073/pnas.1917036117</a></li>
+        <li>Fraley, R. C., Waller, N. G., &amp; Brennan, K. A. (2000). An item response theory analysis of self-report measures of adult attachment. <em>Journal of Personality and Social Psychology, 78</em>(2), 350–365. <a href="https://doi.org/10.1037/0022-3514.78.2.350">https://doi.org/10.1037/0022-3514.78.2.350</a></li>
+        <li>Gmelch, S., Bodenmann, G., Meuwly, N., Ledermann, T., Steffen-Sozinova, O., &amp; Striegl, K. (2008). Dyadisches Coping Inventar (DCI). <em>Journal of Family Research, 20</em>(2), 185–202. <a href="https://doi.org/10.20377/jfr-264">https://doi.org/10.20377/jfr-264</a></li>
         <li>Woodin, E. M. (2011). A two-dimensional approach to relationship conflict: Meta-analytic findings. <em>Journal of Family Psychology, 25</em>(3), 325–335. <a href="https://doi.org/10.1037/a0023791">https://doi.org/10.1037/a0023791</a></li>
       </ol>
     </article>
     <aside class="callout danger-note"><strong>安全提示：</strong>CPQ 完整题组包含身体攻击行为题目，但它不是专门的暴力风险筛查。如果现实中存在即时人身危险，请优先寻求当地紧急服务和可信支持。</aside>
   </section>
 
-  <footer>CPQ-35 standard scoring core · SPAFF-informed observation prototype</footer>
+  <footer>CPQ-35 standard scoring core · ECR-R · DCI adapter · local longitudinal records · SPAFF-informed observation</footer>
 </main>
 <script src="supabase-config.js"></script>
 <script src="divorce-model-config.js"></script>
+<script src="dci-config.js"></script>
 <script type="module" src="app.mjs"></script>
 </body>
 </html>

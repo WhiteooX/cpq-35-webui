@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Supplemental model tests</title>
+<pre id="result">RUNNING</pre>
+<script type="module">
+  import {
+    ECR_R_ITEMS,
+    blankEcrAnswers,
+    inspectEcrAnswers,
+    scoreEcrR,
+    validateDciScores,
+    validateDciItemBank,
+    scoreAuthorizedDci
+  } from './supplemental-model.mjs';
+  import {
+    LONGITUDINAL_SCHEMA,
+    buildLongitudinalDataset,
+    summarizeChange
+  } from './longitudinal-model.mjs';
+
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+
+  try {
+    assert(ECR_R_ITEMS.length === 36, 'ECR-R item count');
+    assert(inspectEcrAnswers(blankEcrAnswers()).answered === 0, 'blank ECR inspection');
+    const officialExample = [1, 2, 2, 1, 3, 2, 2, 2, 1, 1, 6, 2, 2, 2, 3, 2, 5, 1, 2, 5, 2, 5, 2, 4, 2, 6, 6, 7, 7, 5, 6, 2, 6, 6, 6, 6];
+    const ecr = scoreEcrR(officialExample);
+    assert(ecr.complete && ecr.anxiety === 2.33 && ecr.avoidance === 2.17, 'official ECR scoring example');
+    assert(scoreEcrR(Array(36).fill(1)).anxiety === 1.67, 'ECR reverse keys');
+
+    const dciManual = validateDciScores({ totalWithoutEvaluation: 100, common: 20 });
+    assert(dciManual.available && dciManual.valid && dciManual.scores.totalWithoutEvaluation === 100, 'manual DCI scores');
+    assert(!validateDciScores({ totalWithoutEvaluation: 176 }).valid, 'DCI range guard');
+    assert(!validateDciItemBank(null).valid, 'DCI authorization guard');
+    const subscales = [
+      ...Array(4).fill('selfStressCommunication'),
+      ...Array(5).fill('selfSupportive'),
+      ...Array(2).fill('selfDelegated'),
+      ...Array(4).fill('selfNegative'),
+      ...Array(4).fill('partnerStressCommunication'),
+      ...Array(5).fill('partnerSupportive'),
+      ...Array(2).fill('partnerDelegated'),
+      ...Array(4).fill('partnerNegative'),
+      ...Array(5).fill('common')
+    ];
+    const bank = {
+      version: 'synthetic-test-only',
+      language: 'test',
+      authorizationConfirmed: true,
+      items: Array.from({ length: 37 }, (_, index) => ({
+        id: index + 1,
+        text: `Synthetic test item ${index + 1}`,
+        subscale: index < 35 ? subscales[index] : undefined,
+        reverse: index === 0
+      })).reverse()
+    };
+    const dci = scoreAuthorizedDci(Array(37).fill(1), bank);
+    assert(dci.complete && dci.scores.totalWithoutEvaluation === 39, 'authorized DCI scoring and item-id order');
+
+    const record = (date, strain) => ({
+      schema: LONGITUDINAL_SCHEMA,
+      assessment: { coupleId: 'study_001', date, timepoint: date },
+      measures: { cpq: { communicationStrain: { value: strain } } }
+    });
+    const dataset = buildLongitudinalDataset([record('2026-01-01', 30), record('2026-03-01', 42)]);
+    assert(dataset.accepted.length === 2 && !dataset.rejected.length, 'longitudinal import');
+    assert(summarizeChange(dataset.accepted, 'communicationStrain').change === 12, 'longitudinal change');
+    const duplicate = buildLongitudinalDataset([record('2026-01-01', 30), record('2026-01-01', 35)]);
+    assert(duplicate.accepted.length === 1 && duplicate.rejected[0].errors[0] === 'duplicate', 'duplicate guard');
+    assert(buildLongitudinalDataset([record('2026-02-31', 30)]).rejected[0].errors.includes('date'), 'calendar date guard');
+
+    document.querySelector('#result').textContent = 'PASS';
+  } catch (error) {
+    document.querySelector('#result').textContent = `FAIL: ${error.message}`;
+  }
+</script>

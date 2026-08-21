@@ -24,6 +24,9 @@
 
       assert(doc.querySelector('#communicationStrainValue'), 'communication strain result card');
       assert(doc.querySelector('#divorceProbabilityValue').textContent.trim() === '不可计算', 'probability disabled by default');
+      assert(doc.querySelectorAll('#ecrQuestions .question').length === 36, 'ECR-R item count');
+      assert(doc.querySelectorAll('#dciScoreGrid input').length === 12, 'DCI manual score fields');
+      assert(doc.querySelector('#assessmentDate').value, 'longitudinal date initialization');
 
       doc.querySelector('#generatePinBtn').click();
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -39,6 +42,19 @@
       doc.querySelector('#spaffPerson').value = 'A';
       doc.querySelector('#spaffPerson').dispatchEvent(new Event('change', { bubbles: true }));
       assert(doc.querySelector('#spaffRatingGrid select').value === '7', 'SPAFF-informed rating persistence');
+
+      doc.querySelector('[data-tab="supplements"]').click();
+      assert(doc.querySelector('#supplements').classList.contains('active'), 'supplement panel activation');
+      doc.querySelectorAll('#ecrQuestions .question').forEach(question => question.querySelector('input[value="1"]').click());
+      doc.querySelector('#submitEcrBtn').click();
+      assert(doc.querySelector('#ecrPerson').value === 'B', 'ECR-R A submission and handoff');
+      assert(doc.querySelector('#ecrProgressA').textContent.includes('已锁定'), 'ECR-R submission lock');
+      assert(
+        doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1,
+        `supplement mobile overflow: ${doc.documentElement.scrollWidth}/${doc.documentElement.clientWidth}`
+      );
+      doc.querySelector('[data-tab="longitudinal"]').click();
+      assert(doc.querySelector('#longitudinalFiles').multiple, 'multiple longitudinal file upload');
 
       assert(
         doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1,
