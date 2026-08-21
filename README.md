@@ -9,7 +9,7 @@
 - 自我／伴侣方向题面，A、B 使用同一套 35 题分别作答。
 - 英文题面与中文对照同时显示。
 - 本地顺序锁定：A 提交后才能进入 B；双方提交前不显示结果。
-- 可选 Supabase 双设备会话：双方提交前不会向一方返回另一方答案。
+- 可选 Supabase 双设备会话：启动时验证远程数据库版本，每5秒自动同步双方提交状态；双方提交前不会向一方返回另一方答案。
 - 结果导出为 JSON。
 - 双方完成后显示 0–100 的“沟通压力研究指数”：它是透明的派生描述指标，不是 CPQ 正式分量表、诊断或离婚概率。
 - 预留固定期限法律离婚概率接口；没有通过独立外部验证并人工批准的模型配置时，页面只显示“不可计算”，不会伪造百分比。
@@ -56,7 +56,7 @@ node cpq-model.test.mjs
 
 测试覆盖题数和阶段结构、缺失值拒绝计分、非法值、反向计分、理论最高分和双人方向配对。
 
-PIN 生成器的浏览器测试位于 `security-utils.test.html`；自动 PIN、SPAFF-informed 评级状态和 390px 移动端溢出检查位于 `ui-smoke.test.html`。启动本地服务器后访问页面，看到 `PASS` 即表示相应测试通过。
+PIN 生成器的浏览器测试位于 `security-utils.test.html`；SPAFF-informed 评级状态、云端未配置门控和 390px 移动端溢出检查位于 `ui-smoke.test.html`。云端请求头与数据库版本检查位于 `cloud-session.test.html`；双设备创建、加入和自动同步流程位于 `cloud-session-ui.test.html`。启动本地服务器后访问页面，看到 `PASS` 即表示相应测试通过。
 
 研究派生指标和概率模型门控测试位于 `relationship-research.test.html`。
 
@@ -86,16 +86,19 @@ DCI 的默认 `dci-config.js` 为空。若已获得允许网页施测的正式�
 
 ## Supabase 双设备模式
 
+GitHub Pages 只托管静态文件，不能单独承担跨设备数据保存。`supabase-config.js` 为空时，网站会明确禁用“创建／加入会话”，而不会把不能跨设备的本地模式伪装成云会话。
+
 1. 创建一个 Supabase 项目。
 2. 在 SQL Editor 中运行 `supabase-setup.sql`。
-3. 将项目 URL 和浏览器公开 key 写入 `supabase-config.js`。不要放入 service-role 或 secret key。
+3. 在项目的 **Connect** 对话框或 **Settings → API Keys** 获取项目 URL 和 `sb_publishable_...` key，将其写入 `supabase-config.js`。旧版 anon JWT 仍兼容；绝不能放入 service-role 或 `sb_secret_...` key。
 4. 部署站点。
 
-从较早版本升级时需要重新运行完整的 `supabase-setup.sql`，以新增 SPAFF-informed 评级字段和 `save_spaff_observation` RPC。
+从较早版本升级时需要重新运行完整的 `supabase-setup.sql`，以新增 SPAFF-informed 评级字段、`save_spaff_observation` RPC 和 schema v3 健康检查。页面只有在健康检查成功后才启用创建／加入入口。
 
 新版数据库脚本包括：
 
 - RLS 和底层表权限撤销；浏览器只调用经过 token 校验的 RPC。
+- 新版 publishable key 只通过 `apikey` 请求头发送；旧版 anon JWT 才兼容 Bearer 头。
 - PIN 使用 bcrypt 哈希；旧版 SHA-256 会在成功加入时迁移。
 - 6–12 位 PIN、连续失败锁定、B 角色防顶替。
 - 草稿固定为 35 个题位并允许空值；正式提交必须恰好为 35 个 1–9 整数。

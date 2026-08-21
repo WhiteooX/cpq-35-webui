@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CPQ browser test suite</title>
+<pre id="result">RUNNING</pre>
+<div id="frames" hidden></div>
+<script type="module">
+  const tests = [
+    'security-utils.test.html',
+    'relationship-research.test.html',
+    'supplemental-model.test.html',
+    'longitudinal-ui.test.html',
+    'cloud-session.test.html',
+    'cloud-session-ui.test.html',
+    'ui-smoke.test.html'
+  ];
+  const result = document.querySelector('#result');
+  const container = document.querySelector('#frames');
+
+  async function runTest(name) {
+    const frame = document.createElement('iframe');
+    frame.src = `./${name}`;
+    container.append(frame);
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const value = frame.contentDocument?.querySelector('#result')?.textContent || '';
+      if (value === 'PASS' || value.startsWith('FAIL')) return `${name}: ${value}`;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return `${name}: FAIL: timeout`;
+  }
+
+  const lines = [];
+  for (const name of tests) lines.push(await runTest(name));
+  result.textContent = lines.every(line => line.endsWith(': PASS'))
+    ? `PASS\n${lines.join('\n')}`
+    : `FAIL\n${lines.join('\n')}`;
+</script>

@@ -1,4 +1,5 @@
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.couple_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -32,6 +33,21 @@ alter table public.couple_sessions add column if not exists spaff_ratings jsonb 
 alter table public.couple_sessions enable row level security;
 revoke all on public.couple_sessions from public, anon, authenticated;
 
+create or replace function public.cpq_service_status()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'status', 'ok',
+    'schemaVersion', 3,
+    'sessionRetentionDays', 30,
+    'serverTime', now()
+  )
+$$;
+
 -- Remove RPCs left by the earlier prototype. The three-argument join function
 -- allowed a caller with the invitation PIN to replace an existing role token.
 drop function if exists public.join_couple_session(text, text, text);
@@ -45,9 +61,9 @@ immutable
 set search_path = public
 as $$
   select case
-    when p_stored like '$2%' then p_stored = crypt(coalesce(p_pin, ''), p_stored)
+    when p_stored like '$2%' then p_stored = extensions.crypt(coalesce(p_pin, ''), p_stored)
     -- Backward compatibility for sessions made by the earlier SHA-256 script.
-    else p_stored = encode(digest(coalesce(p_pin, ''), 'sha256'), 'hex')
+    else p_stored = encode(extensions.digest(coalesce(p_pin, ''), 'sha256'), 'hex')
   end
 $$;
 
@@ -165,7 +181,7 @@ begin
   end loop;
 
   insert into public.couple_sessions(code, pin_hash, token_a)
-  values (v_code, crypt(p_pin, gen_salt('bf', 10)), v_token);
+  values (v_code, extensions.crypt(p_pin, extensions.gen_salt('bf', 10)), v_token);
 
   return jsonb_build_object('code', v_code, 'role', 'A', 'token', v_token::text);
 end;
@@ -211,7 +227,7 @@ begin
 
   update public.couple_sessions
   set token_b = v_token,
-      pin_hash = case when s.pin_hash like '$2%' then s.pin_hash else crypt(p_pin, gen_salt('bf', 10)) end,
+      pin_hash = case when s.pin_hash like '$2%' then s.pin_hash else extensions.crypt(p_pin, extensions.gen_salt('bf', 10)) end,
       failed_attempts = 0,
       locked_until = null,
       updated_at = now()
@@ -369,6 +385,7 @@ revoke execute on function public._valid_cpq_answers(jsonb) from public, anon, a
 revoke execute on function public._valid_observation_events(jsonb) from public, anon, authenticated;
 revoke execute on function public._valid_spaff_ratings(jsonb) from public, anon, authenticated;
 
+revoke execute on function public.cpq_service_status() from public;
 revoke execute on function public.create_couple_session(text) from public;
 revoke execute on function public.join_couple_session(text, text) from public;
 revoke execute on function public.save_couple_answers(text, uuid, jsonb, boolean) from public;
@@ -377,6 +394,7 @@ revoke execute on function public.save_spaff_observation(text, uuid, jsonb, json
 revoke execute on function public.delete_couple_session(text, uuid) from public;
 
 grant execute on function public.create_couple_session(text) to anon, authenticated;
+grant execute on function public.cpq_service_status() to anon, authenticated;
 grant execute on function public.join_couple_session(text, text) to anon, authenticated;
 grant execute on function public.save_couple_answers(text, uuid, jsonb, boolean) to anon, authenticated;
 grant execute on function public.get_couple_session(text, uuid) to anon, authenticated;

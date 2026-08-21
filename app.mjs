@@ -25,11 +25,13 @@ import {
   buildLongitudinalDataset,
   summarizeChange
 } from './longitudinal-model.mjs';
+import { callCloudRpc, inspectCloudConfig, probeCloudService } from './cloud-session.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const blankAnswers = () => Array(35).fill(null);
 const cfg = window.CPQ_SUPABASE || {};
+const inspectedCloudConfig = inspectCloudConfig(cfg);
 const divorceModelConfig = window.CPQ_DIVORCE_MODEL || null;
 const dciItemBank = window.CPQ_DCI_ITEM_BANK || null;
 
@@ -75,6 +77,11 @@ const state = {
 };
 
 let draftTimer = null;
+let cloudRefreshInFlight = false;
+let cloudAvailability = {
+  status: inspectedCloudConfig.valid ? 'checking' : 'unconfigured',
+  detail: inspectedCloudConfig.reason
+};
 
 async function copyText(value) {
   try {
@@ -86,7 +93,30 @@ async function copyText(value) {
 }
 
 function cloudReady() {
-  return Boolean(cfg.url && cfg.anonKey);
+  return cloudAvailability.status === 'online';
+}
+
+async function checkCloudAvailability() {
+  if (!inspectedCloudConfig.valid) {
+    cloudAvailability = { status: 'unconfigured', detail: inspectedCloudConfig.reason };
+    renderSession();
+    return false;
+  }
+  cloudAvailability = { status: 'checking', detail: '正在连接远程数据库' };
+  renderSession();
+  try {
+    const status = await probeCloudService(cfg);
+    cloudAvailability = {
+      status: 'online',
+      detail: `远程会话可用 · 数据保留 ${status.sessionRetentionDays} 天`
+    };
+    renderSession();
+    return true;
+  } catch (error) {
+    cloudAvailability = { status: 'offline', detail: error.message };
+    renderSession();
+    return false;
+  }
 }
 
 function setMessage(selector, message) {
@@ -415,10 +445,31 @@ function renderSupplements() {
 
 function renderSession() {
   const active = state.session.mode === 'cloud' && state.session.code;
+  const statusLabels = {
+    unconfigured: '远程服务未开通',
+    checking: '正在检查远程服务',
+    online: '远程服务在线',
+    offline: '远程服务不可用'
+  };
   $('#activeSession').hidden = !active;
-  $('#cloudStatus').textContent = cloudReady() ? 'Supabase 已配置' : '未配置 · 使用本地模式';
+  $('#cloudStatus').textContent = statusLabels[cloudAvailability.status];
   $('#cloudDot').classList.toggle('ok', cloudReady());
-  $('#privacyBadge').textContent = active ? '云同步会话' : '本地模式';
+  $('#privacyBadge').textContent = active ? (cloudReady() ? '云同步会话' : '云会话待连接') : '本地模式';
+  $('#cloudNotice').hidden = cloudReady();
+  $('#cloudNotice').querySelector('strong').textContent = cloudAvailability.status === 'checking'
+    ? '正在检查远程服务。'
+    : cloudAvailability.status === 'offline'
+      ? '远程服务暂不可用。'
+      : '远程跨设备功能尚未开通。';
+  $('#cloudNoticeText').textContent = cloudAvailability.status === 'unconfigured'
+    ? '当前部署没有连接远程数据库，创建和加入会话已禁用；本地模式不能跨设备。'
+    : `${cloudAvailability.detail}。创建和加入会话暂时不可用。`;
+  $('#retryCloudBtn').disabled = !inspectedCloudConfig.valid || cloudAvailability.status === 'checking';
+  for (const id of ['createPin', 'generatePinBtn', 'togglePinBtn', 'createSessionBtn', 'joinCode', 'joinPin', 'joinSessionBtn']) {
+    $(`#${id}`).disabled = !cloudReady();
+  }
+  $('#refreshSessionBtn').disabled = active && !cloudReady();
+  $('#deleteSessionBtn').disabled = active && !cloudReady();
   $('#copyPinBtn').hidden = !(active && state.session.role === 'A' && state.session.invitePin);
   if (active) {
     $('#activeCode').textContent = state.session.code;
@@ -524,29 +575,8 @@ function loadSessionToken() {
 }
 
 async function rpc(name, body) {
-  if (!cloudReady()) throw new Error('Supabase 尚未配置。');
-  const response = await fetch(`${cfg.url.replace(/\/$/, '')}/rest/v1/rpc/${name}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: cfg.anonKey,
-      Authorization: `Bearer ${cfg.anonKey}`
-    },
-    body: JSON.stringify(body)
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    try {
-      const parsed = JSON.parse(text);
-      throw new Error(parsed.message || `HTTP ${response.status}`);
-    } catch (error) {
-      if (error instanceof SyntaxError) throw new Error(text || `HTTP ${response.status}`);
-      throw error;
-    }
-  }
-  const data = text ? JSON.parse(text) : null;
-  if (data && data.error) throw new Error(data.error);
-  return data;
+  if (!cloudReady()) throw new Error('远程服务当前不可用。');
+  return callCloudRpc(cfg, name, body);
 }
 
 async function createCloudSession() {
@@ -621,8 +651,10 @@ function normalizeSpaffRatings(value) {
   return normalized;
 }
 
-async function refreshCloudSession() {
+async function refreshCloudSession({ silent = false } = {}) {
   if (state.session.mode !== 'cloud') return;
+  if (cloudRefreshInFlight) return;
+  cloudRefreshInFlight = true;
   try {
     const data = await rpc('get_couple_session', { p_code: state.session.code, p_token: state.session.token });
     state.submitted.A = Boolean(data.submittedA);
@@ -640,9 +672,13 @@ async function refreshCloudSession() {
       state.spaffRatings = { A: blankSpaffRatings(), B: blankSpaffRatings() };
     }
     renderAll();
-    setMessage('#sessionMessage', state.submitted.A && state.submitted.B ? '双方已提交，标准结果已解锁。' : '同步完成。');
+    if (!silent) {
+      setMessage('#sessionMessage', state.submitted.A && state.submitted.B ? '双方已提交，标准结果已解锁。' : '同步完成。');
+    }
   } catch (error) {
-    setMessage('#sessionMessage', `同步失败：${error.message}`);
+    if (!silent) setMessage('#sessionMessage', `同步失败：${error.message}`);
+  } finally {
+    cloudRefreshInFlight = false;
   }
 }
 
@@ -1130,6 +1166,10 @@ function setupActions() {
     setMessage('#longitudinalImportMessage', '已清空当前浏览器中载入的档案；原始本地文件未被删除。');
   });
   $('#createSessionBtn').addEventListener('click', createCloudSession);
+  $('#retryCloudBtn').addEventListener('click', async () => {
+    const ready = await checkCloudAvailability();
+    if (ready && state.session.mode === 'cloud') await refreshCloudSession();
+  });
   $('#generatePinBtn').addEventListener('click', async () => {
     try {
       const pin = generateNumericPin();
@@ -1183,8 +1223,16 @@ if (!$('#assessmentDate').value) {
   const now = new Date();
   $('#assessmentDate').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
+const restoredCloudSession = loadSessionToken();
 renderAll();
-if (loadSessionToken() && cloudReady()) refreshCloudSession();
+checkCloudAvailability().then(ready => {
+  if (ready && restoredCloudSession) refreshCloudSession();
+});
 setInterval(() => {
   if (state.events.some(event => event.endMs === null)) renderObservation();
 }, 1000);
+setInterval(() => {
+  if (document.visibilityState === 'visible' && cloudReady() && state.session.mode === 'cloud') {
+    refreshCloudSession({ silent: true });
+  }
+}, 5000);

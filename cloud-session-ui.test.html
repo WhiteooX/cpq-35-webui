@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Cloud session UI integration tests</title>
+<pre id="result">RUNNING</pre>
+<div id="frames"></div>
+<script>
+  const backend = {
+    code: '482913',
+    tokenA: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    tokenB: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    submittedA: false,
+    submittedB: false,
+    answersA: Array(35).fill(null),
+    answersB: Array(35).fill(null)
+  };
+
+  window.handleCloudTestFetch = async (url, options) => {
+    const name = new URL(url).pathname.split('/').pop();
+    const body = JSON.parse(options.body || '{}');
+    if (name === 'cpq_service_status') {
+      return { status: 200, body: { status: 'ok', schemaVersion: 3, sessionRetentionDays: 30 } };
+    }
+    if (name === 'create_couple_session') {
+      return { status: 200, body: { code: backend.code, role: 'A', token: backend.tokenA } };
+    }
+    if (name === 'join_couple_session' && body.p_code === backend.code) {
+      return {
+        status: 200,
+        body: { code: backend.code, role: 'B', token: backend.tokenB, submittedA: backend.submittedA, submittedB: backend.submittedB }
+      };
+    }
+    if (name === 'get_couple_session') {
+      const isA = body.p_token === backend.tokenA;
+      return {
+        status: 200,
+        body: {
+          code: backend.code,
+          role: isA ? 'A' : 'B',
+          submittedA: backend.submittedA,
+          submittedB: backend.submittedB,
+          myAnswers: isA ? backend.answersA : backend.answersB,
+          answersA: null,
+          answersB: null,
+          spaffEvents: [],
+          spaffRatings: { A: {}, B: {} }
+        }
+      };
+    }
+    return { status: 404, body: { message: `Unhandled test RPC: ${name}` } };
+  };
+</script>
+<script type="module">
+  const output = document.querySelector('#result');
+  const frames = document.querySelector('#frames');
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+  const waitFor = async (predicate, message, attempts = 160) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error(message);
+  };
+  const appHtml = await fetch('./index.html').then(response => response.text());
+  const base = new URL('./', location.href).href;
+  const instrumented = appHtml
+    .replace('<head>', `<head><base href="${base}">`)
+    .replace(
+      '<script src="supabase-config.js"><' + '/script>',
+      `<script>
+        window.CPQ_SUPABASE = { url: 'https://test.supabase.co', anonKey: 'sb_publishable_test' };
+        window.fetch = async (url, options) => {
+          const result = await parent.handleCloudTestFetch(url, options);
+          return new Response(JSON.stringify(result.body), {
+            status: result.status,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        };
+      <\/script>`
+    );
+
+  function addDevice(name) {
+    const frame = document.createElement('iframe');
+    frame.title = name;
+    frame.width = '390';
+    frame.height = '500';
+    frame.srcdoc = instrumented;
+    frames.append(frame);
+    return frame;
+  }
+
+  try {
+    const deviceA = addDevice('Device A');
+    const deviceB = addDevice('Device B');
+    await waitFor(
+      () => deviceA.contentDocument?.querySelector('#cloudStatus')?.textContent === '远程服务在线' &&
+        deviceB.contentDocument?.querySelector('#cloudStatus')?.textContent === '远程服务在线',
+      'both devices did not reach cloud-ready state'
+    );
+
+    const docA = deviceA.contentDocument;
+    docA.querySelector('#createPin').value = '123456';
+    docA.querySelector('#createSessionBtn').click();
+    await waitFor(() => docA.querySelector('#activeCode')?.textContent === backend.code, 'device A did not create session');
+    assert(docA.querySelector('#activeRole').textContent === 'A', 'device A role');
+
+    const docB = deviceB.contentDocument;
+    docB.querySelector('#joinCode').value = backend.code;
+    docB.querySelector('#joinPin').value = '123456';
+    docB.querySelector('#joinSessionBtn').click();
+    await waitFor(() => docB.querySelector('#activeCode')?.textContent === backend.code, 'device B did not join session');
+    assert(docB.querySelector('#activeRole').textContent === 'B', 'device B role');
+
+    backend.submittedA = true;
+    await waitFor(() => docB.querySelector('#submitA')?.textContent === '已锁定', 'automatic cross-device polling failed');
+    output.textContent = 'PASS';
+  } catch (error) {
+    output.textContent = `FAIL: ${error.message}`;
+  }
+</script>

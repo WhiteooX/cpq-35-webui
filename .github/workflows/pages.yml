@@ -24,7 +24,7 @@ jobs:
       - name: Assemble public site
         run: |
           mkdir _site
-          cp index.html styles.css app.mjs cpq-model.mjs security-utils.mjs relationship-research.mjs supplemental-model.mjs longitudinal-model.mjs supabase-config.js divorce-model-config.js dci-config.js favicon.svg .nojekyll _site/
+          cp index.html styles.css app.mjs cpq-model.mjs security-utils.mjs relationship-research.mjs supplemental-model.mjs longitudinal-model.mjs cloud-session.mjs supabase-config.js divorce-model-config.js dci-config.js favicon.svg .nojekyll _site/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:

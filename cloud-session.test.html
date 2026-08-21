@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Cloud session tests</title>
+<pre id="result">RUNNING</pre>
+<script type="module">
+  import { callCloudRpc, inspectCloudConfig, probeCloudService } from './cloud-session.mjs';
+
+  const result = document.querySelector('#result');
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+
+  try {
+    assert(!inspectCloudConfig({ url: '', anonKey: '' }).valid, 'empty config rejected');
+    assert(!inspectCloudConfig({ url: 'https://example.com', anonKey: 'sb_publishable_test' }).valid, 'foreign host rejected');
+    const modern = { url: 'https://example.supabase.co/', anonKey: 'sb_publishable_test' };
+    const legacy = { url: 'https://example.supabase.co', anonKey: 'eyJlegacy' };
+    assert(inspectCloudConfig(modern).valid, 'publishable config accepted');
+    assert(inspectCloudConfig(legacy).valid, 'legacy anon config accepted');
+
+    let request;
+    const modernResult = await callCloudRpc(modern, 'cpq_service_status', {}, {
+      fetchImpl: async (url, options) => {
+        request = { url, options };
+        return new Response(JSON.stringify({ status: 'ok', schemaVersion: 3 }), { status: 200 });
+      }
+    });
+    assert(modernResult.status === 'ok', 'modern RPC result');
+    assert(request.options.headers.apikey === modern.anonKey, 'publishable apikey header');
+    assert(!('Authorization' in request.options.headers), 'publishable key is not sent as bearer JWT');
+    assert(request.url.endsWith('/rest/v1/rpc/cpq_service_status'), 'RPC URL');
+
+    await callCloudRpc(legacy, 'cpq_service_status', {}, {
+      fetchImpl: async (_url, options) => {
+        assert(options.headers.Authorization === `Bearer ${legacy.anonKey}`, 'legacy bearer header');
+        return new Response('{}', { status: 200 });
+      }
+    });
+
+    await probeCloudService(modern, {
+      fetchImpl: async () => new Response(JSON.stringify({ status: 'ok', schemaVersion: 3 }), { status: 200 })
+    });
+    let mismatch = false;
+    try {
+      await probeCloudService(modern, {
+        fetchImpl: async () => new Response(JSON.stringify({ status: 'ok', schemaVersion: 2 }), { status: 200 })
+      });
+    } catch (error) {
+      mismatch = error.message.includes('版本不匹配');
+    }
+    assert(mismatch, 'schema mismatch rejected');
+    result.textContent = 'PASS';
+  } catch (error) {
+    result.textContent = `FAIL: ${error.message}`;
+  }
+</script>

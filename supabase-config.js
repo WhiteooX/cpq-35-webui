@@ -1,6 +1,6 @@
-// Copy your Supabase project URL and public anon key here.
-// The anon key is designed to be public in browser apps; database access is restricted by RPC + RLS.
+// Copy your Supabase project URL and public publishable key here.
+// A legacy anon JWT is also supported. Never place a secret or service-role key in this browser file.
 window.CPQ_SUPABASE = {
-  url: '',
-  anonKey: ''
+  url: 'https://dsygeesbqkjhsfmlzmue.supabase.co',
+  anonKey: 'sb_publishable_NnBTk6MkHLrYAcbWNrknaQ_tNdyD3O7'
 };

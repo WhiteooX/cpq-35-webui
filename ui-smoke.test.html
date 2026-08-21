@@ -28,9 +28,11 @@
       assert(doc.querySelectorAll('#dciScoreGrid input').length === 12, 'DCI manual score fields');
       assert(doc.querySelector('#assessmentDate').value, 'longitudinal date initialization');
 
-      doc.querySelector('#generatePinBtn').click();
-      await new Promise(resolve => setTimeout(resolve, 50));
-      assert(/^\d{10}$/.test(doc.querySelector('#createPin').value), 'automatic PIN generation');
+      await waitFor(() => !doc.querySelector('#cloudStatus').textContent.includes('正在检查'));
+      const cloudOnline = doc.querySelector('#cloudStatus').textContent === '远程服务在线';
+      assert(doc.querySelector('#createSessionBtn').disabled === !cloudOnline, 'cloud create readiness gate');
+      assert(doc.querySelector('#joinSessionBtn').disabled === !cloudOnline, 'cloud join readiness gate');
+      assert(doc.querySelector('#cloudNotice').hidden === cloudOnline, 'cloud availability notice');
 
       doc.querySelector('[data-tab="observation"]').click();
       const ratings = doc.querySelectorAll('#spaffRatingGrid select');
