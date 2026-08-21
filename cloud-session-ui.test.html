@@ -21,7 +21,15 @@
     dciAnswersA: Array(37).fill(null),
     dciAnswersB: Array(37).fill(null),
     dciScoresA: {},
-    dciScoresB: {}
+    dciScoresB: {},
+    csiSubmittedA: false, csiSubmittedB: false, csiAnswersA: Array(32).fill(null), csiAnswersB: Array(32).fill(null),
+    gmsexSubmittedA: false, gmsexSubmittedB: false, gmsexAnswersA: Array(5).fill(null), gmsexAnswersB: Array(5).fill(null),
+    nsssSubmittedA: false, nsssSubmittedB: false, nsssAnswersA: Array(12).fill(null), nsssAnswersB: Array(12).fill(null),
+    kosSubmittedA: false, kosSubmittedB: false, kosAnswersA: Array(18).fill(null), kosAnswersB: Array(18).fill(null),
+    promisSubmittedA: false, promisSubmittedB: false,
+    promisResponseA: { profile: 'vaginal', answers: {}, reasons: [] },
+    promisResponseB: { profile: 'vaginal', answers: {}, reasons: [] },
+    rfsSubmittedA: false, rfsSubmittedB: false, rfsAnswersA: Array(12).fill(null), rfsAnswersB: Array(12).fill(null)
   };
   const answeredCount = answers => answers.filter(Number.isInteger).length;
 
@@ -29,7 +37,7 @@
     const name = new URL(url).pathname.split('/').pop();
     const body = JSON.parse(options.body || '{}');
     if (name === 'cpq_service_status') {
-      return { status: 200, body: { status: 'ok', schemaVersion: 6, features: ['serverDciScoring', 'measureProgressCounts'], sessionRetentionDays: 30 } };
+      return { status: 200, body: { status: 'ok', schemaVersion: 8, features: ['serverDciScoring', 'measureProgressCounts', 'relationshipOutcomeMeasures', 'sexSubMeasures', 'promisSexFsProfiles'], sessionRetentionDays: 30 } };
     }
     if (name === 'create_couple_session') {
       return { status: 200, body: { code: backend.code, role: 'A', token: backend.tokenA } };
@@ -73,6 +81,28 @@
           dciAnswersB: dciReady ? backend.dciAnswersB : null,
           dciScoresA: dciReady ? backend.dciScoresA : null,
           dciScoresB: dciReady ? backend.dciScoresB : null,
+          ...Object.fromEntries(['csi', 'gmsex', 'nsss', 'kos', 'rfs'].flatMap(measure => {
+            const prefix = measure[0].toUpperCase() + measure.slice(1);
+            const ready = backend[`${measure}SubmittedA`] && backend[`${measure}SubmittedB`];
+            return [
+              [`${measure}SubmittedA`, backend[`${measure}SubmittedA`]],
+              [`${measure}SubmittedB`, backend[`${measure}SubmittedB`]],
+              [`${measure}AnsweredCountA`, answeredCount(backend[`${measure}AnswersA`])],
+              [`${measure}AnsweredCountB`, answeredCount(backend[`${measure}AnswersB`])],
+              [`my${prefix}Answers`, isA ? backend[`${measure}AnswersA`] : backend[`${measure}AnswersB`]],
+              [`${measure}AnswersA`, ready ? backend[`${measure}AnswersA`] : null],
+              [`${measure}AnswersB`, ready ? backend[`${measure}AnswersB`] : null]
+            ];
+          })),
+          promisSubmittedA: backend.promisSubmittedA,
+          promisSubmittedB: backend.promisSubmittedB,
+          promisAnsweredCountA: Object.keys(backend.promisResponseA.answers).length + (backend.promisResponseA.answers.activity === 1 && backend.promisResponseA.reasons.length ? 1 : 0),
+          promisAnsweredCountB: Object.keys(backend.promisResponseB.answers).length + (backend.promisResponseB.answers.activity === 1 && backend.promisResponseB.reasons.length ? 1 : 0),
+          promisRequiredCountA: backend.promisResponseA.answers.activity === 1 ? 4 : 3,
+          promisRequiredCountB: backend.promisResponseB.answers.activity === 1 ? 4 : 3,
+          myPromisResponse: isA ? backend.promisResponseA : backend.promisResponseB,
+          promisResponseA: backend.promisSubmittedA && backend.promisSubmittedB ? backend.promisResponseA : null,
+          promisResponseB: backend.promisSubmittedA && backend.promisSubmittedB ? backend.promisResponseB : null,
           spaffEvents: [],
           spaffRatings: { A: {}, B: {} }
         }
@@ -95,6 +125,18 @@
       backend[isA ? 'dciAnswersA' : 'dciAnswersB'] = body.p_answers;
       backend[isA ? 'dciScoresA' : 'dciScoresB'] = body.p_scores;
       if (body.p_submit) backend[isA ? 'dciSubmittedA' : 'dciSubmittedB'] = true;
+      return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
+    }
+    if (name === 'save_relationship_measure') {
+      const isA = body.p_token === backend.tokenA;
+      backend[`${body.p_measure}Answers${isA ? 'A' : 'B'}`] = body.p_answers;
+      if (body.p_submit) backend[`${body.p_measure}Submitted${isA ? 'A' : 'B'}`] = true;
+      return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
+    }
+    if (name === 'save_promis_sexfs') {
+      const isA = body.p_token === backend.tokenA;
+      backend[`promisResponse${isA ? 'A' : 'B'}`] = body.p_response;
+      if (body.p_submit) backend[`promisSubmitted${isA ? 'A' : 'B'}`] = true;
       return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
     }
     return { status: 404, body: { message: `Unhandled test RPC: ${name}` } };
@@ -201,6 +243,35 @@
     docB.querySelector('#submitDciBtn').click();
     await waitFor(() => docA.querySelector('#dciTotalB').textContent === '86/175', 'DCI cross-device unlock failed');
     assert(!docA.querySelector('#dciResults').hidden, 'complete DCI subscale results did not unlock');
+
+    docA.querySelectorAll('#csiQuestions .question').forEach(question => question.querySelector('input[value="5"]').click());
+    docA.querySelector('#submitCsiBtn').click();
+    await waitFor(() => backend.csiSubmittedA, 'device A CSI did not sync');
+    assert(docA.querySelector('#csiResults').hidden, 'CSI result leaked before both submissions');
+    docB.querySelectorAll('#csiQuestions .question').forEach(question => question.querySelector('input[value="5"]').click());
+    docB.querySelector('#submitCsiBtn').click();
+    await waitFor(() => !docA.querySelector('#csiResults').hidden, 'CSI cross-device unlock failed');
+
+    docA.querySelectorAll('#nsssQuestions .question').forEach(question => question.querySelector('input[value="5"]').click());
+    docA.querySelector('#submitNsssBtn').click();
+    await waitFor(() => backend.nsssSubmittedA, 'device A NSSS-S did not sync');
+    assert(docA.querySelector('#nsssResults').hidden, 'NSSS-S result leaked before both submissions');
+    docB.querySelectorAll('#nsssQuestions .question').forEach(question => question.querySelector('input[value="4"]').click());
+    docB.querySelector('#submitNsssBtn').click();
+    await waitFor(() => !docA.querySelector('#nsssResults').hidden, 'NSSS-S cross-device unlock failed');
+
+    const answerInactivePromis = doc => {
+      doc.querySelector('#promisQuestions input[name$="interestLevel"][value="5"]').click();
+      doc.querySelector('#promisQuestions input[name$="interestFrequency"][value="5"]').click();
+      doc.querySelector('#promisQuestions input[name$="activity"][value="1"]').click();
+      doc.querySelector('#promisQuestions .reason-choice-grid input').click();
+      doc.querySelector('#submitPromisBtn').click();
+    };
+    answerInactivePromis(docA);
+    await waitFor(() => backend.promisSubmittedA, 'device A PROMIS did not sync');
+    assert(docA.querySelector('#promisResults').hidden, 'PROMIS result leaked before both submissions');
+    answerInactivePromis(docB);
+    await waitFor(() => !docA.querySelector('#promisResults').hidden, 'PROMIS cross-device unlock failed');
     deviceA.contentWindow.localStorage.removeItem('cpqSessionV2');
     deviceB.contentWindow.localStorage.removeItem('cpqSessionV2');
     output.textContent = 'PASS';

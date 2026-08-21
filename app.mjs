@@ -10,13 +10,39 @@ import { generateNumericPin } from './security-utils.mjs';
 import { computeCommunicationStrain, evaluateDivorceProbability } from './relationship-research.mjs';
 import {
   DCI_SCORE_FIELDS,
+  CSI_32_ITEMS,
+  CSI_32_VERSION,
   ECR_R_ITEMS,
   ECR_R_VERSION,
+  GMSEX_ITEMS,
+  GMSEX_VERSION,
+  KOS_FACTOR_LABELS,
+  KOS_ITEMS,
+  KOS_VERSION,
+  NSSS_S_ITEMS,
+  NSSS_S_VERSION,
+  PROMIS_SEXFS_COMMON_ITEMS,
+  PROMIS_SEXFS_PROFILE_ITEMS,
+  PROMIS_SEXFS_PROFILES,
+  PROMIS_SEXFS_REASON_OPTIONS,
+  PROMIS_SEXFS_VERSION,
+  RFS_ITEMS,
+  RFS_VERSION,
   blankDciScores,
   blankEcrAnswers,
+  blankPromisSexFsResponse,
+  blankScaleAnswers,
   inspectEcrAnswers,
+  inspectScaleAnswers,
+  inspectPromisSexFs,
   scoreAuthorizedDci,
+  scoreCsi32,
   scoreEcrR,
+  scoreGmsex,
+  scoreKos,
+  scoreNsssS,
+  scorePromisSexFs,
+  scoreRfs,
   validateDciItemBank,
   validateDciScores
 } from './supplemental-model.mjs';
@@ -57,6 +83,13 @@ const SPAFF_INFORMED_DIMENSIONS = Object.freeze({
 
 const blankSpaffRatings = () => Object.fromEntries(Object.keys(SPAFF_INFORMED_DIMENSIONS).map(code => [code, null]));
 const blankDciAnswers = () => Array(37).fill(null);
+const relationshipMeasureDefinitions = Object.freeze({
+  csi: { items: CSI_32_ITEMS, min: 0, max: 5, score: scoreCsi32, version: CSI_32_VERSION, label: 'CSI-32' },
+  gmsex: { items: GMSEX_ITEMS, min: 1, max: 7, score: scoreGmsex, version: GMSEX_VERSION, label: 'GMSEX' },
+  nsss: { items: NSSS_S_ITEMS, min: 1, max: 5, score: scoreNsssS, version: NSSS_S_VERSION, label: 'NSSS-S' },
+  kos: { items: KOS_ITEMS, min: 1, max: 5, score: scoreKos, version: KOS_VERSION, label: 'KOS-18' },
+  rfs: { items: RFS_ITEMS, min: 1, max: 5, score: scoreRfs, version: RFS_VERSION, label: 'RFS-12' }
+});
 
 const state = {
   respondent: 'A',
@@ -73,11 +106,28 @@ const state = {
   dciAnswers: { A: blankDciAnswers(), B: blankDciAnswers() },
   dciSubmitted: { A: false, B: false },
   dciScores: { A: blankDciScores(), B: blankDciScores() },
+  relationshipMeasures: Object.fromEntries(Object.entries(relationshipMeasureDefinitions).map(([key, definition]) => [key, {
+    person: 'A',
+    answers: { A: blankScaleAnswers(definition.items.length), B: blankScaleAnswers(definition.items.length) },
+    submitted: { A: false, B: false }
+  }])),
+  promisSexFs: {
+    person: 'A',
+    responses: { A: blankPromisSexFsResponse(), B: blankPromisSexFsResponse() },
+    submitted: { A: false, B: false }
+  },
   cloudProgress: {
     cpq: { A: 0, B: 0 },
     ecr: { A: 0, B: 0 },
-    dci: { A: 0, B: 0 }
+    dci: { A: 0, B: 0 },
+    csi: { A: 0, B: 0 },
+    gmsex: { A: 0, B: 0 },
+    nsss: { A: 0, B: 0 },
+    kos: { A: 0, B: 0 },
+    promis: { A: 0, B: 0 },
+    rfs: { A: 0, B: 0 }
   },
+  cloudPromisRequired: { A: 3, B: 3 },
   importedRecords: []
 };
 
@@ -88,7 +138,7 @@ let cpqSaveTail = Promise.resolve();
 let cpqSaveActive = false;
 let cpqSyncError = '';
 let cpqSubmitQueued = false;
-const supplementalDraftTimers = { ecr: null, dci: null };
+const supplementalDraftTimers = { ecr: null, dci: null, csi: null, gmsex: null, nsss: null, kos: null, promis: null, rfs: null };
 let cloudRefreshInFlight = false;
 let cloudAvailability = {
   status: inspectedCloudConfig.valid ? 'checking' : 'unconfigured',
@@ -167,7 +217,14 @@ function resetAssessment(mode = 'local') {
   state.dciAnswers = { A: blankDciAnswers(), B: blankDciAnswers() };
   state.dciSubmitted = { A: false, B: false };
   state.dciScores = { A: blankDciScores(), B: blankDciScores() };
-  state.cloudProgress = { cpq: { A: 0, B: 0 }, ecr: { A: 0, B: 0 }, dci: { A: 0, B: 0 } };
+  state.relationshipMeasures = Object.fromEntries(Object.entries(relationshipMeasureDefinitions).map(([key, definition]) => [key, {
+    person: 'A',
+    answers: { A: blankScaleAnswers(definition.items.length), B: blankScaleAnswers(definition.items.length) },
+    submitted: { A: false, B: false }
+  }]));
+  state.promisSexFs = { person: 'A', responses: { A: blankPromisSexFsResponse(), B: blankPromisSexFsResponse() }, submitted: { A: false, B: false } };
+  state.cloudProgress = Object.fromEntries(['cpq', 'ecr', 'dci', 'csi', 'gmsex', 'nsss', 'kos', 'promis', 'rfs'].map(key => [key, { A: 0, B: 0 }]));
+  state.cloudPromisRequired = { A: 3, B: 3 };
   clearTimeout(draftTimer);
   draftTimer = null;
   cpqDraftRevision = 0;
@@ -186,6 +243,8 @@ function hasCurrentAssessmentData() {
     inspectEcrAnswers(state.ecrAnswers.A).answered || inspectEcrAnswers(state.ecrAnswers.B).answered ||
     state.dciAnswers.A.some(Number.isFinite) || state.dciAnswers.B.some(Number.isFinite) ||
     Object.values(state.dciScores).some(scores => Object.values(scores).some(Number.isFinite)) ||
+    Object.values(state.relationshipMeasures).some(measure => Object.values(measure.answers).some(answers => answers.some(Number.isFinite))) ||
+    Object.values(state.promisSexFs.responses).some(response => Object.values(response.answers).some(Number.isFinite) || response.reasons.length) ||
     state.events.length || Object.values(state.spaffRatings).some(ratings => Object.values(ratings).some(Number.isFinite))
   );
 }
@@ -611,6 +670,306 @@ async function submitDci() {
 function renderSupplements() {
   renderEcr();
   renderDci();
+  Object.keys(relationshipMeasureDefinitions).forEach(renderRelationshipMeasure);
+  renderPromisSexFs();
+}
+
+function scaleEndpoints(measure, item) {
+  if (measure === 'gmsex') return item.zh.split(' — ');
+  if (measure === 'nsss') return ['完全不满意', '极其满意'];
+  if (measure === 'kos') return ['非常不同意', '非常同意'];
+  if (measure === 'rfs') return item.response === 'agreement' ? ['非常不同意', '非常同意'] : ['从不', '总是'];
+  if (item.kind === 'happiness') return ['极不幸福', '非常完美'];
+  if (item.kind === 'agreement') return ['总是不同意', '总是同意'];
+  if (item.kind === 'frequency') return ['从不', '一直如此'];
+  if (item.kind === 'truth') return ['完全不符合', '完全符合'];
+  if (item.kind === 'semantic') return item.zh.split(' — ');
+  return ['完全没有', '完全如此'];
+}
+
+function makeRelationshipQuestion(measure, item, person, locked) {
+  const definition = relationshipMeasureDefinitions[measure];
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'question question-inner';
+  fieldset.disabled = locked;
+  const legend = document.createElement('legend');
+  const head = document.createElement('span');
+  head.className = 'question-head';
+  const number = document.createElement('span');
+  number.className = 'question-number';
+  number.textContent = String(item.id);
+  const wording = document.createElement('span');
+  const zh = document.createElement('span');
+  zh.className = 'question-zh';
+  zh.textContent = item.zh;
+  const en = document.createElement('span');
+  en.className = 'question-en';
+  en.textContent = item.en;
+  wording.append(zh, en);
+  head.append(number, wording);
+  legend.append(head);
+  const endpoints = document.createElement('div');
+  endpoints.className = 'scale-endpoints';
+  const [low, high] = scaleEndpoints(measure, item);
+  endpoints.innerHTML = `<span>${low}</span><span>${high}</span>`;
+  const scale = document.createElement('div');
+  const itemMin = item.min ?? definition.min;
+  const itemMax = item.max ?? definition.max;
+  const choiceCount = itemMax - itemMin + 1;
+  scale.className = `likert ${choiceCount === 7 ? 'seven' : choiceCount === 6 ? 'six' : choiceCount === 5 ? 'five' : ''}`;
+  scale.setAttribute('role', 'radiogroup');
+  for (let value = itemMin; value <= itemMax; value += 1) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = `${measure}-${person}-q${item.id}`;
+    input.value = String(value);
+    input.checked = state.relationshipMeasures[measure].answers[person][item.id - 1] === value;
+    input.addEventListener('change', () => {
+      state.relationshipMeasures[measure].answers[person][item.id - 1] = value;
+      renderRelationshipProgress(measure);
+      setMessage(`#${measure}Message`, state.session.mode === 'cloud' ? `${definition.label} 草稿正在云端同步。` : `${definition.label} 答案暂存在当前页面；提交后锁定。`);
+      scheduleSupplementalDraft(measure);
+    });
+    const text = document.createElement('span');
+    text.textContent = String(value);
+    label.append(input, text);
+    scale.append(label);
+  }
+  fieldset.append(legend, endpoints, scale);
+  return fieldset;
+}
+
+function renderRelationshipProgress(measure) {
+  const definition = relationshipMeasureDefinitions[measure];
+  const model = state.relationshipMeasures[measure];
+  for (const person of ['A', 'B']) {
+    const local = inspectScaleAnswers(model.answers[person], definition.items, definition.min, definition.max).answered;
+    const answered = state.session.mode === 'cloud' && person !== state.session.role ? state.cloudProgress[measure][person] : local;
+    $(`#${measure}Progress${person}`).textContent = `${answered}/${definition.items.length}${model.submitted[person] ? ' · 已锁定' : ''}`;
+  }
+}
+
+function renderRelationshipResults(measure) {
+  const definition = relationshipMeasureDefinitions[measure];
+  const model = state.relationshipMeasures[measure];
+  const scores = { A: definition.score(model.answers.A), B: definition.score(model.answers.B) };
+  const ready = model.submitted.A && model.submitted.B && scores.A.complete && scores.B.complete;
+  $(`#${measure}Results`).hidden = !ready;
+  if (!ready) return;
+  for (const person of ['A', 'B']) {
+    const score = scores[person];
+    $(`#${measure}Score${person}`).textContent = measure === 'csi'
+      ? `${score.total}/161`
+      : measure === 'gmsex'
+        ? `${score.mean.toFixed(2)}/7`
+        : measure === 'kos'
+          ? `${score.total}/90（均值 ${score.mean.toFixed(2)}）`
+          : `${score.total}/60（均值 ${score.mean.toFixed(2)}）`;
+    if (measure === 'kos') {
+      const list = $(`#kosFactors${person}`);
+      list.replaceChildren(...Object.entries(score.factors).map(([factor, value]) => {
+        const item = document.createElement('li');
+        item.textContent = `${KOS_FACTOR_LABELS[factor]}：${value.mean.toFixed(2)}/5`;
+        return item;
+      }));
+    }
+  }
+}
+
+function renderRelationshipMeasure(measure) {
+  const definition = relationshipMeasureDefinitions[measure];
+  const model = state.relationshipMeasures[measure];
+  if (state.session.mode === 'cloud') model.person = state.session.role;
+  const person = model.person;
+  const locked = model.submitted[person];
+  $(`#${measure}Person`).value = person;
+  $(`#${measure}Person`).disabled = state.session.mode === 'cloud';
+  $(`#submit${measure[0].toUpperCase()}${measure.slice(1)}Btn`).disabled = locked;
+  $(`#clear${measure[0].toUpperCase()}${measure.slice(1)}Btn`).disabled = locked;
+  $(`#${measure}Questions`).replaceChildren(...definition.items.map(item => makeRelationshipQuestion(measure, item, person, locked)));
+  renderRelationshipProgress(measure);
+  renderRelationshipResults(measure);
+}
+
+function makePromisQuestion(item, response, locked) {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'question question-inner promis-question';
+  fieldset.disabled = locked;
+  const legend = document.createElement('legend');
+  const head = document.createElement('span');
+  head.className = 'question-head';
+  const number = document.createElement('span');
+  number.className = 'question-number promis-item-id';
+  number.textContent = item.id;
+  const wording = document.createElement('span');
+  const zh = document.createElement('span');
+  zh.className = 'question-zh';
+  zh.textContent = item.zh;
+  const en = document.createElement('span');
+  en.className = 'question-en';
+  en.textContent = item.en;
+  wording.append(zh, en);
+  head.append(number, wording);
+  legend.append(head);
+  const choices = document.createElement('div');
+  choices.className = 'promis-choices';
+  item.choices.forEach(option => {
+    const label = document.createElement('label');
+    label.className = 'promis-choice';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = `promis-${state.promisSexFs.person}-${item.key}`;
+    input.value = String(option.value);
+    input.checked = response.answers[item.key] === option.value;
+    input.addEventListener('change', () => {
+      response.answers[item.key] = option.value;
+      if (item.key === 'activity') {
+        response.reasons = [];
+        [...PROMIS_SEXFS_COMMON_ITEMS.slice(3), ...PROMIS_SEXFS_PROFILE_ITEMS[response.profile]].forEach(branch => { delete response.answers[branch.key]; });
+        renderPromisSexFs();
+      } else {
+        renderPromisProgress();
+      }
+      setMessage('#promisMessage', state.session.mode === 'cloud' ? 'PROMIS SexFS 草稿正在云端同步。' : '答案暂存在当前页面；提交后锁定。');
+      scheduleSupplementalDraft('promis');
+    });
+    const labelText = document.createElement('span');
+    labelText.innerHTML = `<strong>${option.value}</strong><span>${option.zh}</span><small>${option.en}</small>`;
+    label.append(input, labelText);
+    choices.append(label);
+  });
+  fieldset.append(legend, choices);
+  return fieldset;
+}
+
+function makePromisReasons(response, locked) {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'question question-inner';
+  fieldset.disabled = locked;
+  const legend = document.createElement('legend');
+  legend.textContent = '过去30天没有进行性活动的原因（可多选；此项不向伴侣显示具体选择）';
+  const help = document.createElement('p');
+  help.className = 'question-en';
+  help.textContent = 'Why did you not have any sexual activity in the past 30 days? Select all that apply.';
+  const choices = document.createElement('div');
+  choices.className = 'reason-choice-grid';
+  PROMIS_SEXFS_REASON_OPTIONS[response.profile].forEach(option => {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = String(option.id);
+    input.checked = response.reasons.includes(option.id);
+    input.addEventListener('change', () => {
+      response.reasons = input.checked
+        ? [...new Set([...response.reasons, option.id])].sort((a, b) => a - b)
+        : response.reasons.filter(value => value !== option.id);
+      renderPromisProgress();
+      scheduleSupplementalDraft('promis');
+    });
+    const text = document.createElement('span');
+    text.textContent = `${option.zh} · ${option.en}`;
+    label.append(input, text);
+    choices.append(label);
+  });
+  fieldset.append(legend, help, choices);
+  return fieldset;
+}
+
+function renderPromisProgress() {
+  const model = state.promisSexFs;
+  for (const person of ['A', 'B']) {
+    const inspection = inspectPromisSexFs(model.responses[person]);
+    const remote = state.session.mode === 'cloud' && person !== state.session.role;
+    const answered = remote ? state.cloudProgress.promis[person] : inspection.answered;
+    const required = remote ? state.cloudPromisRequired[person] : inspection.required;
+    $(`#promisProgress${person}`).textContent = `${answered}/${required || '—'}${model.submitted[person] ? ' · 已锁定' : ''}`;
+  }
+}
+
+function renderPromisResults() {
+  const model = state.promisSexFs;
+  const scores = { A: scorePromisSexFs(model.responses.A), B: scorePromisSexFs(model.responses.B) };
+  const ready = model.submitted.A && model.submitted.B && scores.A.complete && scores.B.complete;
+  $('#promisResults').hidden = !ready;
+  if (!ready) return;
+  for (const person of ['A', 'B']) {
+    const score = scores[person];
+    $(`#promisProfile${person}`).textContent = PROMIS_SEXFS_PROFILES[score.profile].label;
+    const list = $(`#promisDomains${person}`);
+    list.replaceChildren(...Object.values(score.domains).map(domain => {
+      const item = document.createElement('li');
+      const direction = domain.direction === 'higher-worse' ? '越高表示不适越多' : domain.direction === 'higher-more' ? '越高表示兴趣越多' : '越高表示功能／体验越好';
+      item.textContent = domain.available ? `${domain.label}：原始域分 ${domain.raw}/${domain.range[1]}（${direction}）` : `${domain.label}：不计分（${domain.reason}）`;
+      return item;
+    }));
+    if (!score.sexuallyActive) {
+      const item = document.createElement('li');
+      item.textContent = '无性活动分支：仅作描述；不生成性功能或满意度域分，具体原因不展示给伴侣。';
+      list.append(item);
+    }
+  }
+}
+
+function renderPromisSexFs() {
+  const model = state.promisSexFs;
+  if (state.session.mode === 'cloud') model.person = state.session.role;
+  const person = model.person;
+  const response = model.responses[person];
+  const locked = model.submitted[person];
+  $('#promisPerson').value = person;
+  $('#promisPerson').disabled = state.session.mode === 'cloud';
+  $('#promisProfileSelect').value = response.profile;
+  $('#promisProfileSelect').disabled = locked;
+  $('#submitPromisBtn').disabled = locked;
+  $('#clearPromisBtn').disabled = locked;
+  const questions = [...PROMIS_SEXFS_COMMON_ITEMS.slice(0, 3).map(item => makePromisQuestion(item, response, locked))];
+  if (response.answers.activity === 2) {
+    questions.push(...PROMIS_SEXFS_COMMON_ITEMS.slice(3).map(item => makePromisQuestion(item, response, locked)));
+    questions.push(...PROMIS_SEXFS_PROFILE_ITEMS[response.profile].map(item => makePromisQuestion(item, response, locked)));
+  } else if (response.answers.activity === 1) {
+    questions.push(makePromisReasons(response, locked));
+  }
+  $('#promisQuestions').replaceChildren(...questions);
+  renderPromisProgress();
+  renderPromisResults();
+}
+
+async function submitPromisSexFs() {
+  const model = state.promisSexFs;
+  const person = model.person;
+  const inspection = inspectPromisSexFs(model.responses[person]);
+  if (!inspection.complete) {
+    setMessage('#promisMessage', inspection.invalid.length ? '存在不符合正式选项范围的回答。' : `还有 ${inspection.missing.length} 项未完成。`);
+    return;
+  }
+  if (state.session.mode === 'cloud') {
+    await savePromisSexFsToCloud(true);
+    return;
+  }
+  model.submitted[person] = true;
+  if (person === 'A' && !model.submitted.B) model.person = 'B';
+  renderPromisSexFs();
+  setMessage('#promisMessage', person === 'A' ? 'A 的 PROMIS SexFS 已提交；现在请由伴侣 B 独立作答并自行选择适用身体域。' : 'B 的 PROMIS SexFS 已提交；双方原始域结果已解锁。');
+}
+
+async function submitRelationshipMeasure(measure) {
+  const definition = relationshipMeasureDefinitions[measure];
+  const model = state.relationshipMeasures[measure];
+  const person = model.person;
+  const inspection = inspectScaleAnswers(model.answers[person], definition.items, definition.min, definition.max);
+  if (!inspection.complete) {
+    setMessage(`#${measure}Message`, inspection.invalid.length ? `存在非法题值：${inspection.invalid.join('、')}。` : `还有 ${inspection.missing.length} 题未完成。`);
+    return;
+  }
+  if (state.session.mode === 'cloud') {
+    await saveRelationshipMeasureToCloud(measure, true);
+    return;
+  }
+  model.submitted[person] = true;
+  if (person === 'A' && !model.submitted.B) model.person = 'B';
+  renderRelationshipMeasure(measure);
+  setMessage(`#${measure}Message`, person === 'A' ? `A 的 ${definition.label} 已提交；现在请由伴侣 B 独立作答。` : `B 的 ${definition.label} 已提交；双方结果已解锁。`);
 }
 
 function renderSession() {
@@ -757,6 +1116,8 @@ function loadSessionToken() {
       state.respondent = saved.role;
       state.ecrPerson = saved.role;
       state.dciPerson = saved.role;
+      Object.values(state.relationshipMeasures).forEach(measure => { measure.person = saved.role; });
+      state.promisSexFs.person = saved.role;
       return true;
     }
   } catch (_) {
@@ -784,6 +1145,8 @@ async function createCloudSession() {
     state.respondent = 'A';
     state.ecrPerson = 'A';
     state.dciPerson = 'A';
+    Object.values(state.relationshipMeasures).forEach(measure => { measure.person = 'A'; });
+    state.promisSexFs.person = 'A';
     saveSessionToken();
     $('#createPin').value = '';
     renderAll();
@@ -808,6 +1171,8 @@ async function joinCloudSession() {
     state.respondent = 'B';
     state.ecrPerson = 'B';
     state.dciPerson = 'B';
+    Object.values(state.relationshipMeasures).forEach(measure => { measure.person = 'B'; });
+    state.promisSexFs.person = 'B';
     saveSessionToken();
     $('#joinPin').value = '';
     await refreshCloudSession();
@@ -835,6 +1200,32 @@ function normalizeDciAnswers(value) {
 function normalizeDciScores(value) {
   const validation = validateDciScores(value);
   return validation.valid ? { ...blankDciScores(), ...validation.scores } : blankDciScores();
+}
+
+function normalizeRelationshipAnswers(measure, value) {
+  const definition = relationshipMeasureDefinitions[measure];
+  if (!Array.isArray(value) || value.length !== definition.items.length) return blankScaleAnswers(definition.items.length);
+  return value.map((answer, index) => {
+    const minimum = definition.items[index].min ?? definition.min;
+    const maximum = definition.items[index].max ?? definition.max;
+    return Number.isInteger(answer) && answer >= minimum && answer <= maximum ? answer : null;
+  });
+}
+
+function normalizePromisSexFsResponse(value) {
+  const profile = PROMIS_SEXFS_PROFILES[value?.profile] ? value.profile : 'vaginal';
+  const normalized = blankPromisSexFsResponse(profile);
+  const items = [...PROMIS_SEXFS_COMMON_ITEMS, ...PROMIS_SEXFS_PROFILE_ITEMS[profile]];
+  if (value?.answers && typeof value.answers === 'object' && !Array.isArray(value.answers)) {
+    items.forEach(item => {
+      const answer = value.answers[item.key];
+      if (Number.isInteger(answer) && item.choices.some(option => option.value === answer)) normalized.answers[item.key] = answer;
+    });
+  }
+  if (Array.isArray(value?.reasons)) {
+    normalized.reasons = [...new Set(value.reasons.filter(reason => Number.isInteger(reason) && reason >= 1 && reason <= PROMIS_SEXFS_REASON_OPTIONS[profile].length))].sort((a, b) => a - b);
+  }
+  return normalized;
 }
 
 function normalizeAnsweredCount(value, maximum, fallback = 0) {
@@ -889,6 +1280,36 @@ async function refreshCloudSession({ silent = false } = {}) {
     state.cloudProgress.dci.B = normalizeAnsweredCount(data.dciAnsweredCountB, 37, state.dciSubmitted.B ? 37 : state.cloudProgress.dci.B);
     state.dciAnswers[state.session.role] = normalizeDciAnswers(data.myDciAnswers);
     state.dciScores[state.session.role] = normalizeDciScores(data.myDciScores);
+    for (const [measure, definition] of Object.entries(relationshipMeasureDefinitions)) {
+      const prefix = measure[0].toUpperCase() + measure.slice(1);
+      const model = state.relationshipMeasures[measure];
+      model.submitted.A = Boolean(data[`${measure}SubmittedA`]);
+      model.submitted.B = Boolean(data[`${measure}SubmittedB`]);
+      state.cloudProgress[measure].A = normalizeAnsweredCount(data[`${measure}AnsweredCountA`], definition.items.length, model.submitted.A ? definition.items.length : state.cloudProgress[measure].A);
+      state.cloudProgress[measure].B = normalizeAnsweredCount(data[`${measure}AnsweredCountB`], definition.items.length, model.submitted.B ? definition.items.length : state.cloudProgress[measure].B);
+      model.answers[state.session.role] = normalizeRelationshipAnswers(measure, data[`my${prefix}Answers`]);
+      if (data[`${measure}AnswersA`] && data[`${measure}AnswersB`]) {
+        model.answers.A = normalizeRelationshipAnswers(measure, data[`${measure}AnswersA`]);
+        model.answers.B = normalizeRelationshipAnswers(measure, data[`${measure}AnswersB`]);
+      } else {
+        const other = state.session.role === 'A' ? 'B' : 'A';
+        model.answers[other] = blankScaleAnswers(definition.items.length);
+      }
+    }
+    state.promisSexFs.submitted.A = Boolean(data.promisSubmittedA);
+    state.promisSexFs.submitted.B = Boolean(data.promisSubmittedB);
+    state.cloudProgress.promis.A = normalizeAnsweredCount(data.promisAnsweredCountA, 13, state.cloudProgress.promis.A);
+    state.cloudProgress.promis.B = normalizeAnsweredCount(data.promisAnsweredCountB, 13, state.cloudProgress.promis.B);
+    state.cloudPromisRequired.A = normalizeAnsweredCount(data.promisRequiredCountA, 13, state.cloudPromisRequired.A);
+    state.cloudPromisRequired.B = normalizeAnsweredCount(data.promisRequiredCountB, 13, state.cloudPromisRequired.B);
+    state.promisSexFs.responses[state.session.role] = normalizePromisSexFsResponse(data.myPromisResponse);
+    if (data.promisResponseA && data.promisResponseB) {
+      state.promisSexFs.responses.A = normalizePromisSexFsResponse(data.promisResponseA);
+      state.promisSexFs.responses.B = normalizePromisSexFsResponse(data.promisResponseB);
+    } else {
+      const other = state.session.role === 'A' ? 'B' : 'A';
+      state.promisSexFs.responses[other] = blankPromisSexFsResponse();
+    }
     if (data.answersA && data.answersB) {
       state.answers.A = normalizeAnswers(data.answersA);
       state.answers.B = normalizeAnswers(data.answersB);
@@ -927,6 +1348,12 @@ async function refreshCloudSession({ silent = false } = {}) {
       renderEcrResults();
       renderDciProgress();
       renderDciTotals();
+      Object.keys(relationshipMeasureDefinitions).forEach(measure => {
+        renderRelationshipProgress(measure);
+        renderRelationshipResults(measure);
+      });
+      renderPromisProgress();
+      renderPromisResults();
       renderObservation();
       renderLongitudinal();
     } else {
@@ -1081,6 +1508,69 @@ async function saveDciToCloud(submit = false) {
   }
 }
 
+async function saveRelationshipMeasureToCloud(measure, submit = false) {
+  if (state.session.mode !== 'cloud') return;
+  const definition = relationshipMeasureDefinitions[measure];
+  const model = state.relationshipMeasures[measure];
+  if (submit) clearTimeout(supplementalDraftTimers[measure]);
+  const person = state.session.role;
+  const inspection = inspectScaleAnswers(model.answers[person], definition.items, definition.min, definition.max);
+  if (submit && !inspection.complete) {
+    setMessage(`#${measure}Message`, `还有 ${inspection.missing.length} 题未完成。`);
+    return;
+  }
+  try {
+    if (submit) setMessage(`#${measure}Message`, `正在提交并锁定 ${definition.label}…`);
+    await rpc('save_relationship_measure', {
+      p_code: state.session.code,
+      p_token: state.session.token,
+      p_measure: measure,
+      p_answers: model.answers[person],
+      p_submit: submit
+    });
+    state.cloudProgress[measure][person] = inspection.answered;
+    if (submit) model.submitted[person] = true;
+    renderRelationshipMeasure(measure);
+    if (submit) {
+      setMessage(`#${measure}Message`, `${person} 的 ${definition.label} 已云端提交并锁定；等待伴侣独立提交。`);
+      await refreshCloudSession();
+    }
+  } catch (error) {
+    setMessage(`#${measure}Message`, `${definition.label} 云同步失败：${error.message}`);
+  }
+}
+
+async function savePromisSexFsToCloud(submit = false) {
+  if (state.session.mode !== 'cloud') return;
+  if (submit) clearTimeout(supplementalDraftTimers.promis);
+  const person = state.session.role;
+  const response = state.promisSexFs.responses[person];
+  const inspection = inspectPromisSexFs(response);
+  if (submit && !inspection.complete) {
+    setMessage('#promisMessage', `还有 ${inspection.missing.length} 项未完成。`);
+    return;
+  }
+  try {
+    if (submit) setMessage('#promisMessage', '正在提交并锁定 PROMIS SexFS…');
+    await rpc('save_promis_sexfs', {
+      p_code: state.session.code,
+      p_token: state.session.token,
+      p_response: response,
+      p_submit: submit
+    });
+    state.cloudProgress.promis[person] = inspection.answered;
+    state.cloudPromisRequired[person] = inspection.required;
+    if (submit) state.promisSexFs.submitted[person] = true;
+    renderPromisSexFs();
+    if (submit) {
+      setMessage('#promisMessage', `${person} 的 PROMIS SexFS 已云端提交并锁定；等待伴侣独立提交。`);
+      await refreshCloudSession();
+    }
+  } catch (error) {
+    setMessage('#promisMessage', `PROMIS SexFS 云同步失败：${error.message}`);
+  }
+}
+
 function scheduleCloudDraft() {
   if (state.session.mode !== 'cloud' || isLocked(state.respondent)) return;
   clearTimeout(draftTimer);
@@ -1088,13 +1578,28 @@ function scheduleCloudDraft() {
 }
 
 function scheduleSupplementalDraft(measure) {
-  if (state.session.mode !== 'cloud' || state.session.role !== (measure === 'ecr' ? state.ecrPerson : state.dciPerson)) return;
-  const submitted = measure === 'ecr' ? state.ecrSubmitted[state.session.role] : state.dciSubmitted[state.session.role];
+  const person = measure === 'ecr'
+    ? state.ecrPerson
+    : measure === 'dci'
+      ? state.dciPerson
+      : measure === 'promis'
+        ? state.promisSexFs.person
+        : state.relationshipMeasures[measure].person;
+  if (state.session.mode !== 'cloud' || state.session.role !== person) return;
+  const submitted = measure === 'ecr'
+    ? state.ecrSubmitted[state.session.role]
+    : measure === 'dci'
+      ? state.dciSubmitted[state.session.role]
+      : measure === 'promis'
+        ? state.promisSexFs.submitted[state.session.role]
+        : state.relationshipMeasures[measure].submitted[state.session.role];
   if (submitted) return;
   clearTimeout(supplementalDraftTimers[measure]);
   supplementalDraftTimers[measure] = setTimeout(() => {
     if (measure === 'ecr') saveEcrToCloud(false);
-    else saveDciToCloud(false);
+    else if (measure === 'dci') saveDciToCloud(false);
+    else if (measure === 'promis') savePromisSexFsToCloud(false);
+    else saveRelationshipMeasureToCloud(measure, false);
   }, 1000);
 }
 
@@ -1171,8 +1676,18 @@ function currentLongitudinalRecord() {
   const dciScores = Object.fromEntries(['A', 'B'].map(person => [person, dciValidated[person].available ? dciValidated[person].scores : null]));
   const hasEcr = Object.values(ecrScores).some(Boolean);
   const hasDci = Object.values(dciScores).some(Boolean);
+  const relationshipScores = Object.fromEntries(Object.entries(relationshipMeasureDefinitions).map(([measure, definition]) => [measure, Object.fromEntries(['A', 'B'].map(person => {
+    const score = state.relationshipMeasures[measure].submitted[person] ? definition.score(state.relationshipMeasures[measure].answers[person]) : null;
+    return [person, score?.complete ? score : null];
+  }))]));
+  const promisScores = Object.fromEntries(['A', 'B'].map(person => {
+    const score = state.promisSexFs.submitted[person] ? scorePromisSexFs(state.promisSexFs.responses[person]) : null;
+    return [person, score?.complete ? score : null];
+  }));
+  const hasRelationshipMeasure = Object.values(relationshipScores).some(scores => Object.values(scores).some(Boolean));
+  const hasPromis = Object.values(promisScores).some(Boolean);
   const hasObservation = Boolean(state.events.length || Object.values(state.spaffRatings).some(ratings => Object.values(ratings).some(Number.isFinite)));
-  if (!cpq && !hasEcr && !hasDci && !hasObservation) return { valid: false, errors: ['至少需要一项已完成测量或观察记录'] };
+  if (!cpq && !hasEcr && !hasDci && !hasRelationshipMeasure && !hasPromis && !hasObservation) return { valid: false, errors: ['至少需要一项已完成测量或观察记录'] };
   const dciBankValidation = validateDciItemBank(dciItemBank);
   return {
     valid: true,
@@ -1195,6 +1710,42 @@ function currentLongitudinalRecord() {
           languageStatus: dciBankValidation.valid
             ? (dciItemBank.translationStatus || 'Official English wording')
             : 'Manual scored-result entry; item wording not recorded'
+        },
+        csi32: {
+          version: CSI_32_VERSION,
+          scores: relationshipScores.csi,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, relationshipScores.csi[person] ? state.relationshipMeasures.csi.answers[person] : null])),
+          languageStatus: 'Chinese reading aid; a Chinese CSI-32 validation exists, but wording equivalence of this deployment has not been independently audited'
+        },
+        gmsex: {
+          version: GMSEX_VERSION,
+          scores: relationshipScores.gmsex,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, relationshipScores.gmsex[person] ? state.relationshipMeasures.gmsex.answers[person] : null])),
+          languageStatus: 'Official English adjective pairs with non-validated Chinese reading aid'
+        },
+        nsssS: {
+          version: NSSS_S_VERSION,
+          scores: relationshipScores.nsss,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, relationshipScores.nsss[person] ? state.relationshipMeasures.nsss.answers[person] : null])),
+          languageStatus: 'Non-official Chinese reading aid; Chinese validation evidence currently applies to a sample of Chinese women'
+        },
+        kos18: {
+          version: KOS_VERSION,
+          scores: relationshipScores.kos,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, relationshipScores.kos[person] ? state.relationshipMeasures.kos.answers[person] : null])),
+          languageStatus: 'Official English wording with non-validated Chinese reading aid; not a diagnosis or compatibility measure'
+        },
+        promisSexFs2: {
+          version: PROMIS_SEXFS_VERSION,
+          scores: promisScores,
+          responses: Object.fromEntries(['A', 'B'].map(person => [person, promisScores[person] ? state.promisSexFs.responses[person] : null])),
+          languageStatus: 'Official English item IDs and wording with non-validated Chinese reading aid; local output is raw-domain profile, not official T-scores'
+        },
+        rfs12: {
+          version: RFS_VERSION,
+          scores: relationshipScores.rfs,
+          answers: Object.fromEntries(['A', 'B'].map(person => [person, relationshipScores.rfs[person] ? state.relationshipMeasures.rfs.answers[person] : null])),
+          languageStatus: 'Official English wording with non-validated Chinese reading aid'
         },
         observation: {
           macroAffectEvents: state.events,
@@ -1242,7 +1793,19 @@ const LONGITUDINAL_METRICS = Object.freeze({
   ecrAvoidanceA: 'A 依恋回避',
   ecrAvoidanceB: 'B 依恋回避',
   dciTotalA: 'A DCI 总分',
-  dciTotalB: 'B DCI 总分'
+  dciTotalB: 'B DCI 总分',
+  csiTotalA: 'A CSI-32',
+  csiTotalB: 'B CSI-32',
+  gmsexMeanA: 'A GMSEX',
+  gmsexMeanB: 'B GMSEX',
+  nsssTotalA: 'A NSSS-S',
+  nsssTotalB: 'B NSSS-S',
+  kosTotalA: 'A KOS-18',
+  kosTotalB: 'B KOS-18',
+  promisSatisfactionRawA: 'A PROMIS 满意度原始域分',
+  promisSatisfactionRawB: 'B PROMIS 满意度原始域分',
+  rfsTotalA: 'A RFS-12',
+  rfsTotalB: 'B RFS-12'
 });
 
 function formatMetric(value) {
@@ -1289,7 +1852,19 @@ function renderLongitudinal() {
       point.metrics.ecrAvoidanceA,
       point.metrics.ecrAvoidanceB,
       point.metrics.dciTotalA,
-      point.metrics.dciTotalB
+      point.metrics.dciTotalB,
+      point.metrics.csiTotalA,
+      point.metrics.csiTotalB,
+      point.metrics.gmsexMeanA,
+      point.metrics.gmsexMeanB,
+      point.metrics.nsssTotalA,
+      point.metrics.nsssTotalB,
+      point.metrics.kosTotalA,
+      point.metrics.kosTotalB,
+      point.metrics.promisSatisfactionRawA,
+      point.metrics.promisSatisfactionRawB,
+      point.metrics.rfsTotalA,
+      point.metrics.rfsTotalB
     ];
     values.forEach(value => {
       const cell = document.createElement('td');
@@ -1493,7 +2068,7 @@ function setupActions() {
     renderQuestions();
   }));
   $('#startLocalBtn').addEventListener('click', () => {
-    if (hasCurrentAssessmentData() && !window.confirm('开始新测评会清除当前页面中的 CPQ、ECR-R、DCI 和观察数据。请先下载纵向档案。确定继续吗？')) return;
+    if (hasCurrentAssessmentData() && !window.confirm('开始新测评会清除当前页面中的 CPQ、ECR-R、DCI、CSI、Sex Sub、RFS 和观察数据。请先下载纵向档案。确定继续吗？')) return;
     localStorage.removeItem('cpqSessionV2');
     resetAssessment('local');
     activateTab('questionnaire');
@@ -1541,6 +2116,51 @@ function setupActions() {
     renderDci();
     scheduleSupplementalDraft('dci');
     setMessage('#dciMessage', `已清空伴侣 ${person} 的 DCI 数据。`);
+  });
+  for (const [measure, definition] of Object.entries(relationshipMeasureDefinitions)) {
+    const prefix = measure[0].toUpperCase() + measure.slice(1);
+    $(`#${measure}Person`).addEventListener('change', event => {
+      state.relationshipMeasures[measure].person = event.target.value;
+      renderRelationshipMeasure(measure);
+    });
+    $(`#submit${prefix}Btn`).addEventListener('click', () => submitRelationshipMeasure(measure));
+    $(`#clear${prefix}Btn`).addEventListener('click', () => {
+      const model = state.relationshipMeasures[measure];
+      const person = model.person;
+      if (model.submitted[person] || !window.confirm(`确定清空伴侣 ${person} 的全部 ${definition.label} 答案吗？`)) return;
+      model.answers[person] = blankScaleAnswers(definition.items.length);
+      state.cloudProgress[measure][person] = 0;
+      renderRelationshipMeasure(measure);
+      scheduleSupplementalDraft(measure);
+    });
+  }
+  $('#promisPerson').addEventListener('change', event => {
+    state.promisSexFs.person = event.target.value;
+    renderPromisSexFs();
+  });
+  $('#promisProfileSelect').addEventListener('change', event => {
+    const model = state.promisSexFs;
+    const person = model.person;
+    const current = model.responses[person];
+    const hasAnswers = Object.values(current.answers).some(Number.isFinite) || current.reasons.length;
+    if (hasAnswers && !window.confirm('切换身体相关域会清空当前 PROMIS SexFS 草稿。确定继续吗？')) {
+      event.target.value = current.profile;
+      return;
+    }
+    model.responses[person] = blankPromisSexFsResponse(event.target.value);
+    state.cloudProgress.promis[person] = 0;
+    renderPromisSexFs();
+    scheduleSupplementalDraft('promis');
+  });
+  $('#submitPromisBtn').addEventListener('click', submitPromisSexFs);
+  $('#clearPromisBtn').addEventListener('click', () => {
+    const model = state.promisSexFs;
+    const person = model.person;
+    if (model.submitted[person] || !window.confirm(`确定清空伴侣 ${person} 的全部 PROMIS SexFS 答案吗？`)) return;
+    model.responses[person] = blankPromisSexFsResponse(model.responses[person].profile);
+    state.cloudProgress.promis[person] = 0;
+    renderPromisSexFs();
+    scheduleSupplementalDraft('promis');
   });
   $('#exportLongitudinalBtn').addEventListener('click', exportLongitudinalRecord);
   $('#longitudinalFiles').addEventListener('change', event => importLongitudinalFiles(event.target.files));

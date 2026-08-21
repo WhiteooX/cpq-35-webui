@@ -13,7 +13,7 @@ CPQ-35 适合描述双方报告的建设性沟通和要求／回避模式，但�
 5. 把亲密伴侣暴力与即时安全完全独立处理；
 6. 在多个时间点重复测量，而不是从一次横断面分数预测未来。
 
-当前实现已经把 ECR-R 作为依恋背景维度、把 DCI 作为压力适应层，并增加本地纵向档案导入。它们不会与 CPQ 合成总分：ECR-R 更接近相对稳定的个体脆弱性，DCI 和 CPQ 更接近可变化的适应过程，满意度／承诺仍是尚待补入的关系评价层。
+当前实现已把 ECR-R 作为依恋背景、DCI 作为压力适应、CSI-32 作为关系满意度结局、Sex Sub 作为性满意度／功能／kink 取向的独立模块、RFS-12 作为积极关系功能，并支持本地纵向档案。它们不会与 CPQ 合成总分；承诺与替代选择仍是尚待补入的机制层。
 
 Joel 等（2020）汇总 43 个纵向情侣数据集、11,196 对伴侣。关系特异变量能够解释相当一部分当前关系质量，但各种自陈变量的组合仍难以预测谁的关系质量之后会上升或下降。这直接反对从一次 CPQ 作答生成未经纵向验证的“感情发展概率”。
 
@@ -50,7 +50,12 @@ Johnson（2002）对 SPAFF 的心理测量研究发现，多个具体代码存�
 
 | 层级 | 建议工具 | 测量目标 | 在本项目中的位置 | 主要限制 |
 | --- | --- | --- | --- | --- |
-| 主要结局 | Couples Satisfaction Index（CSI-32/16/4） | 当前关系满意度 | 优先新增，作为重复随访结局 | 不能把单次分数当未来结局 |
+| 主要结局 | Couples Satisfaction Index（CSI-32） | 当前关系满意度 | 已实现双人作答、云同步和纵向保存 | 不能把单次分数当未来结局；本部署中文需继续等值性核验 |
+| 性满意度快速总览 | GMSEX | 整体性满意度 | 已实现5题均值与总分 | 敏感且自愿；不是性功能、同意或暴力筛查 |
+| 性满意度深入测量 | NSSS-S | 自身体验、交换、伴侣与活动满意度 | 已实现12题总分、云同步和纵向保存 | 中文证据来自女性样本；不用于诊断或情侣兼容性 |
+| 性功能与体验 | PROMIS SexFS 2.0 Brief Profiles | 兴趣、性高潮、满意度及身体相关功能／不适域 | 已实现两种profile与无活动条件分支 | 无单一总分；本站原始域分不是正式T分；身体域不能由性别身份替代 |
+| Kink/BDSM相关取向 | Kink Orientation Scale（KOS-18） | kink认同、实践、物品、社群和交流 | 已实现总分与五因素描述 | 不是病理、危险、同意、安全或匹配度量表；中文等值性未建立 |
+| 积极关系功能 | Relationship Flourishing Scale（RFS-12） | 意义、成长、给予、目标分享 | 已实现单维总分与均值 | 中文阅读辅助未验证；不自创四个诊断分量表 |
 | 承诺机制 | Investment Model Scale（IMS） | 满意、替代选择、投入、承诺 | 与 CPQ 并列的解释变量 | 构念相关但不可与满意度合成总分 |
 | 依恋背景 | ECR-R | 依恋焦虑与回避 | 调节变量或分层变量 | 是个体倾向，不是关系健康诊断 |
 | 压力适应 | Dyadic Coping Inventory（DCI） | 压力沟通、支持性／委托式／消极／共同应对 | 已实现官方英文 DCI-37、非官方中文阅读辅助、正式计分与双人云同步 | 中文阅读辅助未验证，正式中文版仍需授权／等值性证据；不作个体诊断 |
@@ -59,7 +64,7 @@ Johnson（2002）对 SPAFF 的心理测量研究发现，多个具体代码存�
 | 安全域 | CTS2 或经本地验证的 IPV 筛查 | 谈判、心理攻击、身体伤害等 | 必须独立于“关系预测” | 需要安全处置流程，不可由正向分数抵消 |
 | 行为观察 | 正式 SPAFF 或预注册改编 | 冲突中的具体情感／行为 | 独立观察层 | 依赖训练、录像质量和一致性 |
 
-不建议把全部量表合成单一分数。当前项目已加入 **CPQ-35 + ECR-R + 双语显示的 DCI-37 + 重复随访档案**；DCI 中文仅为非官方阅读辅助。下一优先级仍应是 CSI-16 与 IMS，因为满意度和承诺是区别于依恋、沟通和共同应对的独立预测层。
+不建议把全部量表合成单一分数。当前项目已加入 **CPQ-35 + ECR-R + DCI-37 + CSI-32 + Sex Sub + RFS-12 + 重复随访档案**；中文版本状态在导出中分别记录。下一优先级是 Investment Model Scale，因为承诺、投入和替代选择与满意度、沟通及共同应对是可区分的机制。
 
 ## “预测感情发展”的正确建模方向
 
@@ -111,6 +116,12 @@ Johnson（2002）对 SPAFF 的心理测量研究发现，多个具体代码存�
 - Fraley, R. C., Waller, N. G., & Brennan, K. A. (2000). An item response theory analysis of self-report measures of adult attachment. *Journal of Personality and Social Psychology, 78*, 350–365. https://doi.org/10.1037/0022-3514.78.2.350
 - Gmelch, S., Bodenmann, G., Meuwly, N., Ledermann, T., Steffen-Sozinova, O., & Striegl, K. (2008). Dyadisches Coping Inventar (DCI): Ein Fragebogen zur Erfassung des partnerschaftlichen Umgangs mit Stress. *Journal of Family Research, 20*, 185–202. https://doi.org/10.20377/jfr-264
 - Funk, J. L., & Rogge, R. D. (2007). Testing the ruler with item response theory: Increasing precision of measurement for relationship satisfaction with the Couples Satisfaction Index. *Journal of Family Psychology, 21*, 572–583. https://doi.org/10.1037/0893-3200.21.4.572
+- Wang, S., Lee, W.-C., & Ma, H. (2024). The Chinese version of the Couples Satisfaction Index: Psychometric assessment and differential item functioning analysis with item response theory. *SAGE Open, 14*(3). https://doi.org/10.1177/21582440241271087
+- Lawrance, K., & Byers, E. S. (1995). Sexual satisfaction in long-term heterosexual relationships: The Interpersonal Exchange Model of Sexual Satisfaction. *Personal Relationships, 2*, 267–285. https://doi.org/10.1111/j.1475-6811.1995.tb00092.x
+- Fowers, B. J., Laurenceau, J.-P., Penfield, R. D., Cohen, L. M., Lang, S. F., Owenz, M. B., & Pasipanodya, E. (2016). Enhancing relationship quality measurement: The development of the Relationship Flourishing Scale. *Journal of Family Psychology, 30*, 997–1007. https://doi.org/10.1037/fam0000263
+- Wang, C., Chen, E. P. H., Chan, P. H., & Štulhofer, A. (2023). Adaptation and validation of the Chinese version of the New Sexual Satisfaction Scale–Short Form in a sample of Chinese women. *Sexual Medicine, 11*(6), qfad065. https://doi.org/10.1093/sexmed/qfad065
+- Weinfurt, K. P., Lin, L., Bruner, D. W., et al. (2015). Development and initial validation of the PROMIS Sexual Function and Satisfaction Measures Version 2.0. *The Journal of Sexual Medicine, 12*, 1961–1974. https://doi.org/10.1111/jsm.12966
+- Wignall, L., McCormack, M., Carpino, T., Owens, R., & Barton, T. (2024). The Kink Orientation Scale: Developing and validating a measure of kink desire, practice, and identity. *The Journal of Sex Research*. https://doi.org/10.1080/00224499.2024.2387769
 - Gottman, J. M., Coan, J., Carrere, S., & Swanson, C. (1998). Predicting marital happiness and stability from newlywed interactions. *Journal of Marriage and the Family, 60*, 5–22. https://doi.org/10.2307/353438
 - Heyman, R. E. (2001). Observation of couple conflicts: Clinical assessment applications, stubborn truths, and shaky foundations. *Psychological Assessment, 13*, 5–35. https://doi.org/10.1037/1040-3590.13.1.5
 - Joel, S., Eastwick, P. W., Allison, C. J., et al. (2020). Machine learning uncovers the most robust self-report predictors of relationship quality across 43 longitudinal couples studies. *PNAS, 117*, 19061–19071. https://doi.org/10.1073/pnas.1917036117

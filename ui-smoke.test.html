@@ -26,6 +26,14 @@
       assert(doc.querySelector('#divorceProbabilityValue').textContent.trim() === '不可计算', 'probability disabled by default');
       assert(doc.querySelectorAll('#ecrQuestions .question').length === 36, 'ECR-R item count');
       assert(doc.querySelectorAll('#dciQuestions .question').length === 37, 'complete official DCI-37 item count');
+      assert(doc.querySelectorAll('#csiQuestions .question').length === 32, 'CSI-32 item count');
+      assert(doc.querySelectorAll('#gmsexQuestions .question').length === 5, 'GMSEX item count');
+      assert(doc.querySelectorAll('#nsssQuestions .question').length === 12, 'NSSS-S item count');
+      assert(doc.querySelectorAll('#kosQuestions .question').length === 18, 'KOS-18 item count');
+      assert(doc.querySelectorAll('#promisQuestions .question').length === 3, 'PROMIS initial branch item count');
+      assert(doc.querySelectorAll('#rfsQuestions .question').length === 12, 'RFS-12 item count');
+      assert(doc.querySelector('#gmsexQuestions .question .question-en').textContent.includes('Bad'), 'GMSEX English reference');
+      assert(doc.querySelector('#rfsQuestions .question .question-zh').textContent.includes('伴侣'), 'RFS Chinese reading aid');
       assert(doc.querySelector('#dciStatus').textContent.includes('完整 37 题'), 'official DCI status');
       assert(doc.querySelector('#dciStatus').textContent.includes('非官方阅读辅助'), 'DCI translation caveat');
       assert(doc.querySelector('#dciQuestions .question .question-zh').textContent.includes('伴侣'), 'DCI Chinese primary wording');
@@ -76,6 +84,27 @@
       doc.querySelector('#submitEcrBtn').click();
       assert(doc.querySelector('#ecrPerson').value === 'B', 'ECR-R A submission and handoff');
       assert(doc.querySelector('#ecrProgressA').textContent.includes('已锁定'), 'ECR-R submission lock');
+      for (const measure of ['csi', 'gmsex', 'nsss', 'kos', 'rfs']) {
+        const answerValue = measure === 'gmsex' ? '7' : '5';
+        doc.querySelectorAll(`#${measure}Questions .question`).forEach(question => question.querySelector(`input[value="${answerValue}"]`).click());
+        doc.querySelector(`#submit${measure[0].toUpperCase()}${measure.slice(1)}Btn`).click();
+        doc.querySelectorAll(`#${measure}Questions .question`).forEach(question => question.querySelector(`input[value="${answerValue}"]`).click());
+        doc.querySelector(`#submit${measure[0].toUpperCase()}${measure.slice(1)}Btn`).click();
+        assert(!doc.querySelector(`#${measure}Results`).hidden, `${measure} local dyadic result unlock`);
+      }
+      assert(doc.querySelector('#csiScoreA').textContent === '145/161', 'CSI reverse scoring in UI');
+      assert(doc.querySelector('#gmsexScoreA').textContent === '7.00/7', 'GMSEX mean in UI');
+      assert(doc.querySelector('#nsssScoreA').textContent.startsWith('60/60'), 'NSSS-S total in UI');
+      assert(doc.querySelector('#kosScoreA').textContent.startsWith('90/90'), 'KOS total in UI');
+      assert(doc.querySelector('#rfsScoreA').textContent.startsWith('60/60'), 'RFS total in UI');
+      for (const person of ['A', 'B']) {
+        doc.querySelector('#promisQuestions input[name$="interestLevel"][value="5"]').click();
+        doc.querySelector('#promisQuestions input[name$="interestFrequency"][value="5"]').click();
+        doc.querySelector('#promisQuestions input[name$="activity"][value="1"]').click();
+        doc.querySelector('#promisQuestions .reason-choice-grid input').click();
+        doc.querySelector('#submitPromisBtn').click();
+      }
+      assert(!doc.querySelector('#promisResults').hidden, 'PROMIS conditional local dyadic result unlock');
       assert(
         doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1,
         `supplement mobile overflow: ${doc.documentElement.scrollWidth}/${doc.documentElement.clientWidth}`

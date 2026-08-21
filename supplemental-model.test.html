@@ -6,9 +6,21 @@
 <script type="module">
   import {
     ECR_R_ITEMS,
+    CSI_32_ITEMS,
+    GMSEX_ITEMS,
+    KOS_ITEMS,
+    NSSS_S_ITEMS,
+    PROMIS_SEXFS_PROFILE_ITEMS,
+    RFS_ITEMS,
     blankEcrAnswers,
     inspectEcrAnswers,
     scoreEcrR,
+    scoreCsi32,
+    scoreGmsex,
+    scoreKos,
+    scoreNsssS,
+    scorePromisSexFs,
+    scoreRfs,
     validateDciScores,
     validateDciItemBank,
     scoreAuthorizedDci,
@@ -31,6 +43,26 @@
     const ecr = scoreEcrR(officialExample);
     assert(ecr.complete && ecr.anxiety === 2.33 && ecr.avoidance === 2.17, 'official ECR scoring example');
     assert(scoreEcrR(Array(36).fill(1)).anxiety === 1.67, 'ECR reverse keys');
+    assert(CSI_32_ITEMS.length === 32 && GMSEX_ITEMS.length === 5 && NSSS_S_ITEMS.length === 12 && KOS_ITEMS.length === 18 && RFS_ITEMS.length === 12, 'relationship measure item counts');
+    const csiMaximum = Array(32).fill(5);
+    csiMaximum[0] = 6;
+    [6, 10, 15].forEach(id => { csiMaximum[id - 1] = 0; });
+    assert(scoreCsi32(csiMaximum).total === 161, 'CSI-32 scoring maximum and reverse keys');
+    assert(!scoreCsi32([...csiMaximum.slice(0, 31), 6]).complete, 'CSI item range guard');
+    assert(scoreGmsex(Array(5).fill(7)).mean === 7 && scoreGmsex(Array(5).fill(7)).total === 35, 'GMSEX mean and total');
+    assert(scoreNsssS(Array(12).fill(5)).total === 60 && scoreNsssS(Array(12).fill(5)).mean === 5, 'NSSS-S total and mean');
+    const kos = scoreKos(Array(18).fill(5));
+    assert(kos.total === 90 && kos.factors.identity.mean === 5 && kos.factors.practices.items === 5, 'KOS total and factor mapping');
+    const promisVaginal = {
+      profile: 'vaginal',
+      answers: Object.fromEntries(['interestLevel','interestFrequency','activity','orgasmAbility','orgasmPleasure','satisfaction','pleasure', ...PROMIS_SEXFS_PROFILE_ITEMS.vaginal.map(item => item.key)].map(key => [key, key === 'activity' ? 2 : 5])),
+      reasons: []
+    };
+    const promisScore = scorePromisSexFs(promisVaginal);
+    assert(promisScore.complete && promisScore.domains.satisfaction.raw === 10 && promisScore.domains.vaginalDiscomfort.direction === 'higher-worse', 'PROMIS active vaginal raw domains');
+    assert(scorePromisSexFs({ profile: 'erectile', answers: { interestLevel: 3, interestFrequency: 4, activity: 1 }, reasons: [1] }).complete, 'PROMIS inactive branch');
+    assert(!scorePromisSexFs({ profile: 'erectile', answers: { interestLevel: 3, interestFrequency: 4, activity: 1 }, reasons: [] }).complete, 'PROMIS inactive reason required');
+    assert(scoreRfs(Array(12).fill(5)).total === 60 && scoreRfs(Array(12).fill(5)).mean === 5, 'RFS total and mean');
 
     const dciManual = validateDciScores({ totalWithoutEvaluation: 100, common: 20 });
     assert(dciManual.available && dciManual.valid && dciManual.scores.totalWithoutEvaluation === 100, 'manual DCI scores');

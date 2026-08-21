@@ -40,7 +40,19 @@ export function recordMetrics(record) {
     ecrAvoidanceA: metric(record, ['measures', 'ecrR', 'scores', 'A', 'avoidance']),
     ecrAvoidanceB: metric(record, ['measures', 'ecrR', 'scores', 'B', 'avoidance']),
     dciTotalA: metric(record, ['measures', 'dci', 'scores', 'A', 'totalWithoutEvaluation']),
-    dciTotalB: metric(record, ['measures', 'dci', 'scores', 'B', 'totalWithoutEvaluation'])
+    dciTotalB: metric(record, ['measures', 'dci', 'scores', 'B', 'totalWithoutEvaluation']),
+    csiTotalA: metric(record, ['measures', 'csi32', 'scores', 'A', 'total']),
+    csiTotalB: metric(record, ['measures', 'csi32', 'scores', 'B', 'total']),
+    gmsexMeanA: metric(record, ['measures', 'gmsex', 'scores', 'A', 'mean']),
+    gmsexMeanB: metric(record, ['measures', 'gmsex', 'scores', 'B', 'mean']),
+    nsssTotalA: metric(record, ['measures', 'nsssS', 'scores', 'A', 'total']),
+    nsssTotalB: metric(record, ['measures', 'nsssS', 'scores', 'B', 'total']),
+    kosTotalA: metric(record, ['measures', 'kos18', 'scores', 'A', 'total']),
+    kosTotalB: metric(record, ['measures', 'kos18', 'scores', 'B', 'total']),
+    promisSatisfactionRawA: metric(record, ['measures', 'promisSexFs2', 'scores', 'A', 'domains', 'satisfaction', 'raw']),
+    promisSatisfactionRawB: metric(record, ['measures', 'promisSexFs2', 'scores', 'B', 'domains', 'satisfaction', 'raw']),
+    rfsTotalA: metric(record, ['measures', 'rfs12', 'scores', 'A', 'total']),
+    rfsTotalB: metric(record, ['measures', 'rfs12', 'scores', 'B', 'total'])
   });
 }
 

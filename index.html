@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、双语 DCI-37 阅读辅助、SPAFF-informed 观察与本地纵向分析。">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、DCI-37、CSI-32、Sex Sub（GMSEX、NSSS-S、PROMIS SexFS 2.0、KOS-18）、RFS-12、SPAFF-informed 观察与纵向分析。">
   <meta name="referrer" content="no-referrer">
   <title>CPQ-35 双人沟通模式问卷</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -33,7 +33,7 @@
   <nav class="tabs" aria-label="主功能">
     <button class="tab active" data-tab="session" type="button">01 · 测评会话</button>
     <button class="tab" data-tab="questionnaire" type="button">02 · CPQ-35</button>
-    <button class="tab" data-tab="supplements" type="button">03 · ECR-R / DCI</button>
+    <button class="tab" data-tab="supplements" type="button">03 · 补充量表</button>
     <button class="tab" data-tab="observation" type="button">04 · 观察 / SPAFF</button>
     <button class="tab" data-tab="longitudinal" type="button">05 · 纵向档案</button>
     <button class="tab" data-tab="methods" type="button">06 · 方法</button>
@@ -101,10 +101,10 @@
 
   <section id="supplements" class="panel" tabindex="-1">
     <div class="section-heading">
-      <div><h2>依恋与共同应对</h2><p>ECR-R 与 DCI 是 CPQ 之外的独立构念，不与 CPQ 合成总分。</p></div>
+      <div><h2>补充量表</h2><p>依恋、共同应对、关系满意度、性满意度与关系繁荣分别计分，不与 CPQ 合成总分。</p></div>
     </div>
-    <aside class="callout warning"><strong>语言与解释边界：</strong>ECR-R 与 DCI 的中文均为本项目制作的非官方阅读辅助，未经正式翻译、回译或测量等值性验证；英文原文紧随中文并作为版本与计分参照。正式中文研究需使用经过授权和心理测量验证的版本。ECR-R 两个维度均按连续分数报告，不自动划分依恋类型。</aside>
-    <aside class="callout"><strong>保存方式：</strong>远程会话中，ECR-R 与 DCI 草稿和提交状态会同步到 Supabase；双方分别提交同一量表前，不返回对方答案或分数。本地模式仍只保存在本页内存，刷新或开始新测评前请下载纵向档案。</aside>
+    <aside class="callout warning"><strong>语言与解释边界：</strong>所有题目保留英文版本参照。除已发表中国样本证据的 CSI 外，其余中文均为本项目制作的非官方阅读辅助；CSI 的本部署措辞也尚未逐字完成独立等值性审计。所有结果按连续分数报告，不自动划分类别或诊断。</aside>
+    <aside class="callout"><strong>保存方式：</strong>远程会话中，各量表草稿、完成题数和提交状态会同步到 Supabase；双方分别提交同一量表前，不返回对方答案或分数。本地模式仍只保存在本页内存，刷新或开始新测评前请下载纵向档案。</aside>
     <article class="card">
       <div class="section-heading compact-heading">
         <div><h3>ECR-R 36题</h3><p>回想你通常在情感亲密关系中的体验，而不只针对最近一次冲突。</p></div>
@@ -156,6 +156,91 @@
         <article class="metric-card"><h4>伴侣 B</h4><p>DCI 总分 <strong id="dciTotalB">—</strong></p><ul id="dciScoresB" class="dci-score-list"></ul></article>
       </div>
       <p class="field-help">计分严格使用原始题号：7、10、11、15、22、25、26、27 反向计分；总分为第1–35题之和，第36、37题仅作为满意度与效果评价，不进入总分。双方各自提交前不显示对方结果。中文为非官方阅读辅助，尚未经过独立双译、回译、认知访谈、测量不变性或本土常模验证，不应称为 DCI 正式中文版。来源与复用说明：<a href="https://www.researchgate.net/profile/Guy-Bodenmann/publication/323285418_Dyadic_Coping_Inventory/links/5a901eeea6fdccecff00ce52/Dyadic-Coping-Inventory.pdf">Bodenmann (2008), DCI-37</a>；Copyright © 2008 Guy Bodenmann，reproduced with permission。网站不套用未经核验的个体诊断或关系结局阈值。</p>
+    </article>
+
+    <article class="card">
+      <div class="section-heading compact-heading">
+        <div><h3>CSI-32 · 关系满意度</h3><p>综合评价当前亲密关系；中文主文配英文原文参照。</p></div>
+        <div class="button-row"><label class="sr-only" for="csiPerson">CSI 当前作答者</label><select id="csiPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><button id="submitCsiBtn" class="button primary" type="button">提交当前 CSI</button><button id="clearCsiBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 完成度</span><strong id="csiProgressA">0/32</strong></div><div class="metric"><span>B 完成度</span><strong id="csiProgressB">0/32</strong></div></div>
+      <p class="scale-instruction"><strong>作答提示：</strong>各题端点随题型变化，请按题目下方端点作答。系统按原量表计分为 0–161，越高表示报告的关系满意度越高。</p>
+      <div id="csiQuestions"></div><p id="csiMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="csiResults" class="grid two" hidden><article class="metric-card"><h4>伴侣 A</h4><p>CSI-32 <strong id="csiScoreA">—</strong></p></article><article class="metric-card"><h4>伴侣 B</h4><p>CSI-32 <strong id="csiScoreB">—</strong></p></article></div>
+      <p class="field-help">不在中国用户上套用原始英文样本的 104.5 分界，也不将分数解释为诊断或结局概率。中国样本验证见 <a href="https://doi.org/10.1177/21582440241271087">Wang, Lee, &amp; Ma (2024)</a>；本部署中文措辞尚未单独核对测量等值性，英文原文保留作版本参照。原量表：<a href="https://doi.org/10.1037/0893-3200.21.4.572">Funk &amp; Rogge (2007)</a>。</p>
+    </article>
+
+    <div class="subsection-banner sex-subsection-banner">
+      <div><p class="eyebrow">Sex Sub · 自愿敏感模块</p><h2>性满意度、性功能体验与 kink 取向</h2></div>
+      <p>四套工具保持独立：GMSEX 快速总览；NSSS-S 深入满意度；PROMIS SexFS 2.0 按身体相关域描述功能；KOS 描述 kink 参与和认同。它们不会相加成“性生活总分”。</p>
+    </div>
+
+    <article class="card sensitive-measure sex-sub-card">
+      <div class="section-heading compact-heading">
+        <div><h3>GMSEX 5题 · 性关系满意度</h3><p>评价你目前性关系的整体感受；可自愿跳过整个模块。</p></div>
+        <div class="button-row"><label class="sr-only" for="gmsexPerson">GMSEX 当前作答者</label><select id="gmsexPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><button id="submitGmsexBtn" class="button primary" type="button">提交当前 GMSEX</button><button id="clearGmsexBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <aside class="callout warning"><strong>敏感内容：</strong>本模块不是性功能、同意或暴力筛查。若作答可能造成压力或被伴侣强迫查看，请跳过，并优先保护个人安全与隐私。</aside>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 完成度</span><strong id="gmsexProgressA">0/5</strong></div><div class="metric"><span>B 完成度</span><strong id="gmsexProgressB">0/5</strong></div></div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 靠近左侧负向端点，7 靠近右侧正向端点。报告 5 题均值（1–7）并保留总分（5–35）。</p>
+      <div id="gmsexQuestions"></div><p id="gmsexMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="gmsexResults" class="grid two" hidden><article class="metric-card"><h4>伴侣 A</h4><p>GMSEX 均值 <strong id="gmsexScoreA">—</strong></p></article><article class="metric-card"><h4>伴侣 B</h4><p>GMSEX 均值 <strong id="gmsexScoreB">—</strong></p></article></div>
+      <p class="field-help">中文为本项目制作的非官方阅读辅助；英文形容词对为参照。分数越高表示报告的整体性满意度越高，不设诊断阈值。来源：Lawrance &amp; Byers (1995), Interpersonal Exchange Model of Sexual Satisfaction。</p>
+    </article>
+
+    <article class="card sensitive-measure sex-sub-card">
+      <div class="section-heading compact-heading">
+        <div><h3>NSSS-S 12题 · 新性满意度短表</h3><p>回顾通常或近六个月的性生活体验，从个人感受、身体功能、伴侣互动和活动特征评估满意度。</p></div>
+        <div class="button-row"><label class="sr-only" for="nsssPerson">NSSS-S 当前作答者</label><select id="nsssPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><button id="submitNsssBtn" class="button primary" type="button">提交当前 NSSS-S</button><button id="clearNsssBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 完成度</span><strong id="nsssProgressA">0/12</strong></div><div class="metric"><span>B 完成度</span><strong id="nsssProgressB">0/12</strong></div></div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 = 完全不满意，2 = 有一点满意，3 = 中等满意，4 = 非常满意，5 = 极其满意。总分 12–60，越高表示报告的性满意度越高。</p>
+      <div id="nsssQuestions"></div><p id="nsssMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="nsssResults" class="grid two" hidden><article class="metric-card"><h4>伴侣 A</h4><p>NSSS-S <strong id="nsssScoreA">—</strong></p></article><article class="metric-card"><h4>伴侣 B</h4><p>NSSS-S <strong id="nsssScoreB">—</strong></p></article></div>
+      <p class="field-help">中文是非官方阅读辅助，英文原文作为版本参照。中文短表的心理测量证据来自中国女性样本，不能直接外推为中国男性或情侣差异的常模；第7题在年龄比较中曾出现差异题项功能信号。来源：<a href="https://doi.org/10.1093/sexmed/qfad065">Wang et al. (2023)</a>。</p>
+    </article>
+
+    <article class="card sensitive-measure sex-sub-card">
+      <div class="section-heading compact-heading">
+        <div><h3>PROMIS SexFS 2.0 · 正式 Brief Profile 结构</h3><p>过去30天的性兴趣、活动、性高潮、满意度，以及你自行选择的身体相关功能域。</p></div>
+        <div class="button-row"><label class="sr-only" for="promisPerson">PROMIS 当前作答者</label><select id="promisPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><label class="sr-only" for="promisProfileSelect">适用身体域</label><select id="promisProfileSelect"><option value="vaginal">阴道／外阴相关域（14项表）</option><option value="erectile">勃起相关域（10项表）</option></select><button id="submitPromisBtn" class="button primary" type="button">提交当前 PROMIS</button><button id="clearPromisBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <aside class="callout warning"><strong>请选择身体相关域，而不是身份标签：</strong>两位伴侣可以选择相同或不同 profile。若过去30天无性活动，问卷会进入原因分支，不把“未活动”自动记成低功能；具体原因不会展示给伴侣。</aside>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 当前分支</span><strong id="promisProgressA">0/3</strong></div><div class="metric"><span>B 当前分支</span><strong id="promisProgressB">0/3</strong></div></div>
+      <p class="scale-instruction"><strong>计分说明：</strong>SexFS 没有合法的单一总分。本站逐域报告可审计的原始域分；未在本地冒充 HealthMeasures 的 IRT／T 分。高分含义随域而异：功能、兴趣、满意度越高通常表示更多／更好，不适域越高表示不适更多。</p>
+      <div id="promisQuestions"></div><p id="promisMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="promisResults" class="grid two" hidden>
+        <article class="metric-card"><h4>伴侣 A · <span id="promisProfileA">—</span></h4><ul id="promisDomainsA" class="domain-score-list"></ul></article>
+        <article class="metric-card"><h4>伴侣 B · <span id="promisProfileB">—</span></h4><ul id="promisDomainsB" class="domain-score-list"></ul></article>
+      </div>
+      <p class="field-help">题号与英文措辞依据 PROMIS SexFS v2.0 Brief Profile；中文仅为非官方阅读辅助。正式 T 分应使用 HealthMeasures Scoring Service 或官方附录，不应把本站原始域分与临床常模直接比较。来源：<a href="https://doi.org/10.1111/jsm.12966">Weinfurt et al. (2015)</a>；<a href="https://www.phenxtoolkit.org/protocols/view/880801">PhenX Female Brief Profile</a>；<a href="https://www.phenxtoolkit.org/protocols/view/880802">PhenX Male Brief Profile</a>。</p>
+    </article>
+
+    <article class="card sensitive-measure sex-sub-card">
+      <div class="section-heading compact-heading">
+        <div><h3>KOS-18 · Kink Orientation Scale</h3><p>描述 kink 的认同、实践／兴趣、相关物品、社群与交流；“BDSM”只是可能包含的范围之一。</p></div>
+        <div class="button-row"><label class="sr-only" for="kosPerson">KOS 当前作答者</label><select id="kosPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><button id="submitKosBtn" class="button primary" type="button">提交当前 KOS</button><button id="clearKosBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 完成度</span><strong id="kosProgressA">0/18</strong></div><div class="metric"><span>B 完成度</span><strong id="kosProgressB">0/18</strong></div></div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 = 非常不同意，2 = 有些不同意，3 = 既不同意也不赞同，4 = 有些同意，5 = 非常同意。论文总分范围 18–90。</p>
+      <div id="kosQuestions"></div><p id="kosMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="kosResults" class="grid two" hidden>
+        <article class="metric-card"><h4>伴侣 A</h4><p>KOS-18 <strong id="kosScoreA">—</strong></p><ul id="kosFactorsA" class="domain-score-list"></ul></article>
+        <article class="metric-card"><h4>伴侣 B</h4><p>KOS-18 <strong id="kosScoreB">—</strong></p><ul id="kosFactorsB" class="domain-score-list"></ul></article>
+      </div>
+      <p class="field-help">高分只表示更多 kink 参与／认同，不表示异常、危险、同意质量、BDSM“等级”或伴侣兼容性。五个因子均值只作描述，不套用临床阈值；该量表的验证样本包含大学生样本和 kink 社群样本，跨文化中文等值性尚未建立。来源：<a href="https://doi.org/10.1080/00224499.2024.2387769">Wignall et al. (2024)</a>。</p>
+    </article>
+
+    <article class="card">
+      <div class="section-heading compact-heading">
+        <div><h3>RFS-12 · 关系繁荣</h3><p>补充关系中的意义、共同成长、给予和目标分享，不等同于“没有冲突”。</p></div>
+        <div class="button-row"><label class="sr-only" for="rfsPerson">RFS 当前作答者</label><select id="rfsPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select><button id="submitRfsBtn" class="button primary" type="button">提交当前 RFS</button><button id="clearRfsBtn" class="button danger" type="button">清空当前</button></div>
+      </div>
+      <div class="progress-grid supplemental-progress"><div class="metric"><span>A 完成度</span><strong id="rfsProgressA">0/12</strong></div><div class="metric"><span>B 完成度</span><strong id="rfsProgressB">0/12</strong></div></div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>第1–4题为 1“非常不同意”至5“非常同意”；第5–12题为 1“从不”至5“总是”。报告总分 12–60 与均值 1–5。</p>
+      <div id="rfsQuestions"></div><p id="rfsMessage" class="message" role="status" aria-live="polite"></p>
+      <div id="rfsResults" class="grid two" hidden><article class="metric-card"><h4>伴侣 A</h4><p>RFS-12 <strong id="rfsScoreA">—</strong></p></article><article class="metric-card"><h4>伴侣 B</h4><p>RFS-12 <strong id="rfsScoreB">—</strong></p></article></div>
+      <p class="field-help">正式结果使用单一总分；四个理论主题仅用于理解构念，不在此生成未经验证的分量表。中文为非官方阅读辅助，英文原文为参照。来源：<a href="https://doi.org/10.1037/fam0000263">Fowers et al. (2016)</a>。</p>
     </article>
   </section>
 
@@ -312,7 +397,7 @@
       <article class="card table-card">
         <h3>时间序列</h3>
         <table>
-          <thead><tr><th>日期</th><th>时间点</th><th>沟通压力</th><th>A焦虑</th><th>B焦虑</th><th>A回避</th><th>B回避</th><th>A DCI</th><th>B DCI</th></tr></thead>
+          <thead><tr><th>日期</th><th>时间点</th><th>沟通压力</th><th>A焦虑</th><th>B焦虑</th><th>A回避</th><th>B回避</th><th>A DCI</th><th>B DCI</th><th>A CSI</th><th>B CSI</th><th>A GMSEX</th><th>B GMSEX</th><th>A NSSS-S</th><th>B NSSS-S</th><th>A KOS</th><th>B KOS</th><th>A PROMIS满意</th><th>B PROMIS满意</th><th>A RFS</th><th>B RFS</th></tr></thead>
           <tbody id="longitudinalRows"></tbody>
         </table>
       </article>
@@ -347,7 +432,9 @@
       <table>
         <thead><tr><th scope="col">研究层级</th><th scope="col">优先工具</th><th scope="col">用途</th><th scope="col">边界</th></tr></thead>
         <tbody>
-          <tr><th scope="row">主要结局</th><td>CSI-16</td><td>重复测量关系满意度</td><td>单次分数不是未来结局</td></tr>
+          <tr><th scope="row">主要结局</th><td>CSI-32（已实现）</td><td>重复测量关系满意度</td><td>单次分数不是未来结局</td></tr>
+          <tr><th scope="row">Sex Sub</th><td>GMSEX、NSSS-S、PROMIS SexFS 2.0、KOS-18（已实现）</td><td>整体与深入性满意度、逐域性功能、kink 取向</td><td>四套工具不合成；敏感、自愿；不是诊断或兼容性判断</td></tr>
+          <tr><th scope="row">积极关系功能</th><td>RFS-12（已实现）</td><td>意义、成长、给予与目标分享</td><td>暂无本部署中文等值性证据</td></tr>
           <tr><th scope="row">承诺机制</th><td>Investment Model Scale</td><td>满意、替代选择、投入、承诺</td><td>不与 CPQ 合成总分</td></tr>
           <tr><th scope="row">依恋背景</th><td>ECR-R</td><td>依恋焦虑与回避</td><td>不是关系健康诊断</td></tr>
           <tr><th scope="row">压力适应</th><td>DCI</td><td>双方如何表达和共同应对压力</td><td>正式题本与常模需授权版本</td></tr>
@@ -371,13 +458,20 @@
         <li>Joel, S., Eastwick, P. W., Allison, C. J., et al. (2020). Machine learning uncovers the most robust self-report predictors of relationship quality across 43 longitudinal couples studies. <em>PNAS, 117</em>(32), 19061–19071. <a href="https://doi.org/10.1073/pnas.1917036117">https://doi.org/10.1073/pnas.1917036117</a></li>
         <li>Fraley, R. C., Waller, N. G., &amp; Brennan, K. A. (2000). An item response theory analysis of self-report measures of adult attachment. <em>Journal of Personality and Social Psychology, 78</em>(2), 350–365. <a href="https://doi.org/10.1037/0022-3514.78.2.350">https://doi.org/10.1037/0022-3514.78.2.350</a></li>
         <li>Gmelch, S., Bodenmann, G., Meuwly, N., Ledermann, T., Steffen-Sozinova, O., &amp; Striegl, K. (2008). Dyadisches Coping Inventar (DCI). <em>Journal of Family Research, 20</em>(2), 185–202. <a href="https://doi.org/10.20377/jfr-264">https://doi.org/10.20377/jfr-264</a></li>
+        <li>Funk, J. L., &amp; Rogge, R. D. (2007). Testing the ruler with item response theory: Increasing precision of measurement for relationship satisfaction with the Couples Satisfaction Index. <em>Journal of Family Psychology, 21</em>(4), 572–583. <a href="https://doi.org/10.1037/0893-3200.21.4.572">https://doi.org/10.1037/0893-3200.21.4.572</a></li>
+        <li>Wang, S., Lee, W.-C., &amp; Ma, H. (2024). The Chinese version of the Couples Satisfaction Index: Psychometric assessment and differential item functioning analysis with item response theory. <em>SAGE Open, 14</em>(3). <a href="https://doi.org/10.1177/21582440241271087">https://doi.org/10.1177/21582440241271087</a></li>
+        <li>Lawrance, K., &amp; Byers, E. S. (1995). Sexual satisfaction in long-term heterosexual relationships: The Interpersonal Exchange Model of Sexual Satisfaction. <em>Personal Relationships, 2</em>(4), 267–285. <a href="https://doi.org/10.1111/j.1475-6811.1995.tb00092.x">https://doi.org/10.1111/j.1475-6811.1995.tb00092.x</a></li>
+        <li>Fowers, B. J., Laurenceau, J.-P., Penfield, R. D., Cohen, L. M., Lang, S. F., Owenz, M. B., &amp; Pasipanodya, E. (2016). Enhancing relationship quality measurement: The development of the Relationship Flourishing Scale. <em>Journal of Family Psychology, 30</em>(8), 997–1007. <a href="https://doi.org/10.1037/fam0000263">https://doi.org/10.1037/fam0000263</a></li>
+        <li>Wang, C., Chen, E. P. H., Chan, P. H., &amp; Štulhofer, A. (2023). Adaptation and validation of the Chinese version of the New Sexual Satisfaction Scale–Short Form in a sample of Chinese women. <em>Sexual Medicine, 11</em>(6), qfad065. <a href="https://doi.org/10.1093/sexmed/qfad065">https://doi.org/10.1093/sexmed/qfad065</a></li>
+        <li>Weinfurt, K. P., Lin, L., Bruner, D. W., et al. (2015). Development and initial validation of the PROMIS Sexual Function and Satisfaction Measures Version 2.0. <em>The Journal of Sexual Medicine, 12</em>(9), 1961–1974. <a href="https://doi.org/10.1111/jsm.12966">https://doi.org/10.1111/jsm.12966</a></li>
+        <li>Wignall, L., McCormack, M., Carpino, T., Owens, R., &amp; Barton, T. (2024). The Kink Orientation Scale: Developing and validating a measure of kink desire, practice, and identity. <em>The Journal of Sex Research</em>. <a href="https://doi.org/10.1080/00224499.2024.2387769">https://doi.org/10.1080/00224499.2024.2387769</a></li>
         <li>Woodin, E. M. (2011). A two-dimensional approach to relationship conflict: Meta-analytic findings. <em>Journal of Family Psychology, 25</em>(3), 325–335. <a href="https://doi.org/10.1037/a0023791">https://doi.org/10.1037/a0023791</a></li>
       </ol>
     </article>
     <aside class="callout danger-note"><strong>安全提示：</strong>CPQ 完整题组包含身体攻击行为题目，但它不是专门的暴力风险筛查。如果现实中存在即时人身危险，请优先寻求当地紧急服务和可信支持。</aside>
   </section>
 
-  <footer>CPQ-35 standard scoring core · ECR-R · bilingual DCI-37 reading aid · local longitudinal records · SPAFF-informed observation</footer>
+  <footer>CPQ-35 · ECR-R · DCI-37 · CSI-32 · Sex Sub · RFS-12 · longitudinal records · SPAFF-informed observation</footer>
 </main>
 <script src="supabase-config.js"></script>
 <script src="divorce-model-config.js"></script>

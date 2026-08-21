@@ -60,7 +60,7 @@ export async function callCloudRpc(config, name, body = {}, options = {}) {
 
 export async function probeCloudService(config, options = {}) {
   const data = await callCloudRpc(config, 'cpq_service_status', {}, options);
-  if (data?.status !== 'ok' || data?.schemaVersion !== 6 || !data?.features?.includes('measureProgressCounts')) {
+  if (data?.status !== 'ok' || data?.schemaVersion !== 8 || !data?.features?.includes('measureProgressCounts') || !data?.features?.includes('relationshipOutcomeMeasures') || !data?.features?.includes('sexSubMeasures') || !data?.features?.includes('promisSexFsProfiles')) {
     throw new Error('远程数据库版本不匹配，请重新运行 supabase-setup.sql');
   }
   return data;

@@ -21,6 +21,42 @@ create table if not exists public.couple_sessions (
   dci_scores_b jsonb not null default '{}'::jsonb,
   dci_submitted_a boolean not null default false,
   dci_submitted_b boolean not null default false,
+  csi_answers_a jsonb not null default '[]'::jsonb,
+  csi_answers_b jsonb not null default '[]'::jsonb,
+  csi_scores_a jsonb not null default '{}'::jsonb,
+  csi_scores_b jsonb not null default '{}'::jsonb,
+  csi_submitted_a boolean not null default false,
+  csi_submitted_b boolean not null default false,
+  gmsex_answers_a jsonb not null default '[]'::jsonb,
+  gmsex_answers_b jsonb not null default '[]'::jsonb,
+  gmsex_scores_a jsonb not null default '{}'::jsonb,
+  gmsex_scores_b jsonb not null default '{}'::jsonb,
+  gmsex_submitted_a boolean not null default false,
+  gmsex_submitted_b boolean not null default false,
+  nsss_answers_a jsonb not null default '[]'::jsonb,
+  nsss_answers_b jsonb not null default '[]'::jsonb,
+  nsss_scores_a jsonb not null default '{}'::jsonb,
+  nsss_scores_b jsonb not null default '{}'::jsonb,
+  nsss_submitted_a boolean not null default false,
+  nsss_submitted_b boolean not null default false,
+  kos_answers_a jsonb not null default '[]'::jsonb,
+  kos_answers_b jsonb not null default '[]'::jsonb,
+  kos_scores_a jsonb not null default '{}'::jsonb,
+  kos_scores_b jsonb not null default '{}'::jsonb,
+  kos_submitted_a boolean not null default false,
+  kos_submitted_b boolean not null default false,
+  promis_response_a jsonb not null default '{"profile":"vaginal","answers":{},"reasons":[]}'::jsonb,
+  promis_response_b jsonb not null default '{"profile":"vaginal","answers":{},"reasons":[]}'::jsonb,
+  promis_scores_a jsonb not null default '{}'::jsonb,
+  promis_scores_b jsonb not null default '{}'::jsonb,
+  promis_submitted_a boolean not null default false,
+  promis_submitted_b boolean not null default false,
+  rfs_answers_a jsonb not null default '[]'::jsonb,
+  rfs_answers_b jsonb not null default '[]'::jsonb,
+  rfs_scores_a jsonb not null default '{}'::jsonb,
+  rfs_scores_b jsonb not null default '{}'::jsonb,
+  rfs_submitted_a boolean not null default false,
+  rfs_submitted_b boolean not null default false,
   -- Legacy column name retained for non-destructive migration. These rows are
   -- macro affect-duration events and must not be interpreted as formal SPAFF.
   spaff_events jsonb not null default '[]'::jsonb,
@@ -49,6 +85,42 @@ alter table public.couple_sessions add column if not exists dci_scores_a jsonb n
 alter table public.couple_sessions add column if not exists dci_scores_b jsonb not null default '{}'::jsonb;
 alter table public.couple_sessions add column if not exists dci_submitted_a boolean not null default false;
 alter table public.couple_sessions add column if not exists dci_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists csi_answers_a jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists csi_answers_b jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists csi_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists csi_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists csi_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists csi_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists gmsex_answers_a jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists gmsex_answers_b jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists gmsex_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists gmsex_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists gmsex_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists gmsex_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists nsss_answers_a jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists nsss_answers_b jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists nsss_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists nsss_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists nsss_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists nsss_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists kos_answers_a jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists kos_answers_b jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists kos_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists kos_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists kos_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists kos_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists promis_response_a jsonb not null default '{"profile":"vaginal","answers":{},"reasons":[]}'::jsonb;
+alter table public.couple_sessions add column if not exists promis_response_b jsonb not null default '{"profile":"vaginal","answers":{},"reasons":[]}'::jsonb;
+alter table public.couple_sessions add column if not exists promis_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists promis_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists promis_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists promis_submitted_b boolean not null default false;
+alter table public.couple_sessions add column if not exists rfs_answers_a jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists rfs_answers_b jsonb not null default '[]'::jsonb;
+alter table public.couple_sessions add column if not exists rfs_scores_a jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists rfs_scores_b jsonb not null default '{}'::jsonb;
+alter table public.couple_sessions add column if not exists rfs_submitted_a boolean not null default false;
+alter table public.couple_sessions add column if not exists rfs_submitted_b boolean not null default false;
 
 alter table public.couple_sessions enable row level security;
 revoke all on public.couple_sessions from public, anon, authenticated;
@@ -62,8 +134,8 @@ set search_path = public
 as $$
   select jsonb_build_object(
     'status', 'ok',
-    'schemaVersion', 6,
-    'features', jsonb_build_array('serverDciScoring', 'measureProgressCounts'),
+    'schemaVersion', 8,
+    'features', jsonb_build_array('serverDciScoring', 'measureProgressCounts', 'relationshipOutcomeMeasures', 'sexSubMeasures', 'promisSexFsProfiles'),
     'sessionRetentionDays', 30,
     'serverTime', now()
   )
@@ -210,6 +282,179 @@ as $$
     'effectiveness', max(raw) filter (where id = 37)
   )
   from keyed
+$$;
+
+create or replace function public._valid_csi_answers(p_answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select case when jsonb_typeof(p_answers) = 'array' and jsonb_array_length(p_answers) = 32 then
+    not exists (
+      select 1 from jsonb_array_elements(p_answers) with ordinality as response(value, id)
+      where jsonb_typeof(value) not in ('number', 'null')
+         or case when jsonb_typeof(value) = 'number' then
+           (value #>> '{}') !~ '^[0-6]$'
+           or (id > 1 and (value #>> '{}')::integer > 5)
+         else false end
+    )
+  else false end
+$$;
+
+create or replace function public._score_csi_answers(p_answers jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  with responses as (
+    select id::integer, (value #>> '{}')::integer as raw
+    from jsonb_array_elements(p_answers) with ordinality as response(value, id)
+  )
+  select jsonb_build_object('total', sum(case when id in (6, 10, 15) then 5 - raw else raw end)) from responses
+$$;
+
+create or replace function public._score_gmsex_answers(p_answers jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  with responses as (select (value #>> '{}')::integer as raw from jsonb_array_elements(p_answers) as response(value))
+  select jsonb_build_object('total', sum(raw), 'mean', round(avg(raw), 2)) from responses
+$$;
+
+create or replace function public._score_nsss_answers(p_answers jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  with responses as (select (value #>> '{}')::integer as raw from jsonb_array_elements(p_answers) as response(value))
+  select jsonb_build_object('total', sum(raw), 'mean', round(avg(raw), 2)) from responses
+$$;
+
+create or replace function public._score_kos_answers(p_answers jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  with responses as (
+    select id::integer, (value #>> '{}')::integer as raw
+    from jsonb_array_elements(p_answers) with ordinality as response(value, id)
+  )
+  select jsonb_build_object(
+    'total', sum(raw), 'mean', round(avg(raw), 2),
+    'factors', jsonb_build_object(
+      'identity', round(avg(raw) filter (where id in (1,2,3)), 2),
+      'practices', round(avg(raw) filter (where id in (4,5,6,7,14)), 2),
+      'paraphernalia', round(avg(raw) filter (where id in (8,9,18)), 2),
+      'community', round(avg(raw) filter (where id in (10,11,12,13)), 2),
+      'communication', round(avg(raw) filter (where id in (15,16,17)), 2)
+    )
+  ) from responses
+$$;
+
+create or replace function public._valid_promis_response(p_response jsonb)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select case when jsonb_typeof(p_response) = 'object'
+    and p_response->>'profile' in ('vaginal', 'erectile')
+    and jsonb_typeof(p_response->'answers') = 'object'
+    and jsonb_typeof(p_response->'reasons') = 'array'
+  then
+    not exists (select 1 from jsonb_object_keys(p_response) as response_key(key) where key not in ('profile','answers','reasons'))
+    and jsonb_array_length(p_response->'reasons') <= 10
+    and jsonb_array_length(p_response->'reasons') = (select count(distinct value #>> '{}') from jsonb_array_elements(p_response->'reasons') as reason(value))
+    and not exists (
+      select 1 from jsonb_each(p_response->'answers') as answer(key, value)
+      where key not in (
+        'interestLevel','interestFrequency','activity','orgasmAbility','orgasmPleasure','satisfaction','pleasure',
+        'lubricationFrequency','lubricationMaintenance','vaginalDiscomfort','vaginalPain','labialDiscomfort','clitoralDiscomfort',
+        'erectionFrequency','erectionMaintenance'
+      )
+      or jsonb_typeof(value) <> 'number'
+      or (value #>> '{}') !~ '^[0-5]$'
+      or (key = 'activity' and (value #>> '{}')::integer not between 1 and 2)
+      or (key not in ('orgasmAbility','orgasmPleasure','erectionMaintenance','activity') and (value #>> '{}')::integer not between 1 and 5)
+    )
+    and not exists (
+      select 1 from jsonb_array_elements(p_response->'reasons') as reason(value)
+      where jsonb_typeof(value) <> 'number' or (value #>> '{}') !~ '^(10|[1-9])$'
+    )
+  else false end
+$$;
+
+create or replace function public._promis_required_count(p_response jsonb)
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select case
+    when p_response->'answers'->>'activity' = '1' then 4
+    when p_response->'answers'->>'activity' = '2' and p_response->>'profile' = 'vaginal' then 13
+    when p_response->'answers'->>'activity' = '2' and p_response->>'profile' = 'erectile' then 9
+    else 3
+  end
+$$;
+
+create or replace function public._promis_answered_count(p_response jsonb)
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  with required_keys as (
+    select unnest(case
+      when p_response->'answers'->>'activity' = '2' and p_response->>'profile' = 'vaginal'
+        then array['interestLevel','interestFrequency','activity','orgasmAbility','orgasmPleasure','satisfaction','pleasure','lubricationFrequency','lubricationMaintenance','vaginalDiscomfort','vaginalPain','labialDiscomfort','clitoralDiscomfort']
+      when p_response->'answers'->>'activity' = '2' and p_response->>'profile' = 'erectile'
+        then array['interestLevel','interestFrequency','activity','orgasmAbility','orgasmPleasure','satisfaction','pleasure','erectionFrequency','erectionMaintenance']
+      else array['interestLevel','interestFrequency','activity']
+    end) as key
+  )
+  select count(*)::integer
+    + case when p_response->'answers'->>'activity' = '1' and jsonb_array_length(p_response->'reasons') > 0 then 1 else 0 end
+  from required_keys where jsonb_typeof(p_response->'answers'->key) = 'number'
+$$;
+
+create or replace function public._score_promis_response(p_response jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'profile', p_response->>'profile',
+    'sexuallyActive', p_response->'answers'->>'activity' = '2',
+    'interestRaw', coalesce((p_response->'answers'->>'interestLevel')::integer, 0) + coalesce((p_response->'answers'->>'interestFrequency')::integer, 0),
+    'satisfactionRaw', case when p_response->'answers'->>'activity' = '2' then
+      coalesce((p_response->'answers'->>'satisfaction')::integer, 0) + coalesce((p_response->'answers'->>'pleasure')::integer, 0)
+      else null end,
+    'scoringStatus', 'raw-domain-profile; official T-score conversion not applied locally'
+  )
+$$;
+
+create or replace function public._score_rfs_answers(p_answers jsonb)
+returns jsonb
+language sql
+immutable
+strict
+set search_path = public
+as $$
+  with responses as (select (value #>> '{}')::integer as raw from jsonb_array_elements(p_answers) as response(value))
+  select jsonb_build_object('total', sum(raw), 'mean', round(avg(raw), 2)) from responses
 $$;
 
 create or replace function public._valid_observation_events(p_events jsonb)
@@ -555,6 +800,132 @@ begin
 end;
 $$;
 
+create or replace function public.save_relationship_measure(
+  p_code text,
+  p_token uuid,
+  p_measure text,
+  p_answers jsonb,
+  p_submit boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s public.couple_sessions%rowtype;
+  v_role text;
+  v_complete boolean;
+  v_score jsonb := '{}'::jsonb;
+begin
+  if p_measure not in ('csi', 'gmsex', 'nsss', 'kos', 'rfs') then raise exception 'Unknown relationship measure'; end if;
+  select * into s from public.couple_sessions where code = p_code and expires_at > now() for update;
+  if not found then raise exception 'Session not found or expired'; end if;
+  if s.token_a = p_token then v_role := 'A';
+  elsif s.token_b = p_token then v_role := 'B';
+  else raise exception 'Invalid member token';
+  end if;
+
+  if p_measure = 'csi' and not public._valid_csi_answers(p_answers) then
+    raise exception 'CSI answers must contain exactly 32 values in the required ranges';
+  elsif p_measure = 'gmsex' and not public._valid_scale_answers(p_answers, 5, 7) then
+    raise exception 'GMSEX answers must contain exactly 5 values using null or integers from 1 to 7';
+  elsif p_measure = 'nsss' and not public._valid_scale_answers(p_answers, 12, 5) then
+    raise exception 'NSSS-S answers must contain exactly 12 values using null or integers from 1 to 5';
+  elsif p_measure = 'kos' and not public._valid_scale_answers(p_answers, 18, 5) then
+    raise exception 'KOS answers must contain exactly 18 values using null or integers from 1 to 5';
+  elsif p_measure = 'rfs' and not public._valid_scale_answers(p_answers, 12, 5) then
+    raise exception 'RFS answers must contain exactly 12 values using null or integers from 1 to 5';
+  end if;
+  select not exists (select 1 from jsonb_array_elements(p_answers) as answer where jsonb_typeof(answer) <> 'number') into v_complete;
+  if coalesce(p_submit, false) and not v_complete then raise exception 'All measure answers are required before submission'; end if;
+  if v_complete then
+    v_score := case p_measure
+      when 'csi' then public._score_csi_answers(p_answers)
+      when 'gmsex' then public._score_gmsex_answers(p_answers)
+      when 'nsss' then public._score_nsss_answers(p_answers)
+      when 'kos' then public._score_kos_answers(p_answers)
+      when 'rfs' then public._score_rfs_answers(p_answers)
+    end;
+  end if;
+
+  if p_measure = 'csi' and v_role = 'A' then
+    if s.csi_submitted_a then raise exception 'A CSI is already submitted and locked'; end if;
+    update public.couple_sessions set csi_answers_a=p_answers,csi_scores_a=v_score,csi_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'csi' then
+    if s.csi_submitted_b then raise exception 'B CSI is already submitted and locked'; end if;
+    update public.couple_sessions set csi_answers_b=p_answers,csi_scores_b=v_score,csi_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'gmsex' and v_role = 'A' then
+    if s.gmsex_submitted_a then raise exception 'A GMSEX is already submitted and locked'; end if;
+    update public.couple_sessions set gmsex_answers_a=p_answers,gmsex_scores_a=v_score,gmsex_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'gmsex' then
+    if s.gmsex_submitted_b then raise exception 'B GMSEX is already submitted and locked'; end if;
+    update public.couple_sessions set gmsex_answers_b=p_answers,gmsex_scores_b=v_score,gmsex_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'nsss' and v_role = 'A' then
+    if s.nsss_submitted_a then raise exception 'A NSSS-S is already submitted and locked'; end if;
+    update public.couple_sessions set nsss_answers_a=p_answers,nsss_scores_a=v_score,nsss_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'nsss' then
+    if s.nsss_submitted_b then raise exception 'B NSSS-S is already submitted and locked'; end if;
+    update public.couple_sessions set nsss_answers_b=p_answers,nsss_scores_b=v_score,nsss_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'kos' and v_role = 'A' then
+    if s.kos_submitted_a then raise exception 'A KOS is already submitted and locked'; end if;
+    update public.couple_sessions set kos_answers_a=p_answers,kos_scores_a=v_score,kos_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'kos' then
+    if s.kos_submitted_b then raise exception 'B KOS is already submitted and locked'; end if;
+    update public.couple_sessions set kos_answers_b=p_answers,kos_scores_b=v_score,kos_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  elsif p_measure = 'rfs' and v_role = 'A' then
+    if s.rfs_submitted_a then raise exception 'A RFS is already submitted and locked'; end if;
+    update public.couple_sessions set rfs_answers_a=p_answers,rfs_scores_a=v_score,rfs_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  else
+    if s.rfs_submitted_b then raise exception 'B RFS is already submitted and locked'; end if;
+    update public.couple_sessions set rfs_answers_b=p_answers,rfs_scores_b=v_score,rfs_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  end if;
+  return jsonb_build_object('ok', true, 'role', v_role, 'measure', p_measure, 'submitted', coalesce(p_submit, false), 'score', v_score);
+end;
+$$;
+
+create or replace function public.save_promis_sexfs(
+  p_code text,
+  p_token uuid,
+  p_response jsonb,
+  p_submit boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s public.couple_sessions%rowtype;
+  v_role text;
+  v_answered integer;
+  v_required integer;
+  v_score jsonb := '{}'::jsonb;
+begin
+  if not public._valid_promis_response(p_response) then raise exception 'Invalid PROMIS SexFS response'; end if;
+  v_answered := public._promis_answered_count(p_response);
+  v_required := public._promis_required_count(p_response);
+  if coalesce(p_submit, false) and v_answered <> v_required then raise exception 'Complete the applicable PROMIS SexFS branch before submission'; end if;
+  if v_answered = v_required then v_score := public._score_promis_response(p_response); end if;
+
+  select * into s from public.couple_sessions where code = p_code and expires_at > now() for update;
+  if not found then raise exception 'Session not found or expired'; end if;
+  if s.token_a = p_token then v_role := 'A';
+  elsif s.token_b = p_token then v_role := 'B';
+  else raise exception 'Invalid member token';
+  end if;
+
+  if v_role = 'A' then
+    if s.promis_submitted_a then raise exception 'A PROMIS SexFS is already submitted and locked'; end if;
+    update public.couple_sessions set promis_response_a=p_response,promis_scores_a=v_score,promis_submitted_a=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  else
+    if s.promis_submitted_b then raise exception 'B PROMIS SexFS is already submitted and locked'; end if;
+    update public.couple_sessions set promis_response_b=p_response,promis_scores_b=v_score,promis_submitted_b=coalesce(p_submit,false),updated_at=now() where id=s.id;
+  end if;
+  return jsonb_build_object('ok', true, 'role', v_role, 'submitted', coalesce(p_submit,false), 'answeredCount', v_answered, 'requiredCount', v_required, 'score', v_score);
+end;
+$$;
+
 create or replace function public.get_couple_session(p_code text, p_token uuid)
 returns jsonb
 language plpgsql
@@ -620,6 +991,62 @@ begin
     'dciAnswersB', case when s.dci_submitted_a and s.dci_submitted_b then s.dci_answers_b else null end,
     'dciScoresA', case when s.dci_submitted_a and s.dci_submitted_b then s.dci_scores_a else null end,
     'dciScoresB', case when s.dci_submitted_a and s.dci_submitted_b then s.dci_scores_b else null end,
+    'csiSubmittedA', s.csi_submitted_a,
+    'csiSubmittedB', s.csi_submitted_b,
+    'csiAnsweredCountA', (select count(*) from jsonb_array_elements(s.csi_answers_a) as answer where jsonb_typeof(answer) = 'number'),
+    'csiAnsweredCountB', (select count(*) from jsonb_array_elements(s.csi_answers_b) as answer where jsonb_typeof(answer) = 'number'),
+    'myCsiAnswers', case when v_role = 'A' then s.csi_answers_a else s.csi_answers_b end,
+    'csiAnswersA', case when s.csi_submitted_a and s.csi_submitted_b then s.csi_answers_a else null end,
+    'csiAnswersB', case when s.csi_submitted_a and s.csi_submitted_b then s.csi_answers_b else null end,
+    'csiScoresA', case when s.csi_submitted_a and s.csi_submitted_b then s.csi_scores_a else null end,
+    'csiScoresB', case when s.csi_submitted_a and s.csi_submitted_b then s.csi_scores_b else null end,
+    'gmsexSubmittedA', s.gmsex_submitted_a,
+    'gmsexSubmittedB', s.gmsex_submitted_b,
+    'gmsexAnsweredCountA', (select count(*) from jsonb_array_elements(s.gmsex_answers_a) as answer where jsonb_typeof(answer) = 'number'),
+    'gmsexAnsweredCountB', (select count(*) from jsonb_array_elements(s.gmsex_answers_b) as answer where jsonb_typeof(answer) = 'number'),
+    'myGmsexAnswers', case when v_role = 'A' then s.gmsex_answers_a else s.gmsex_answers_b end,
+    'gmsexAnswersA', case when s.gmsex_submitted_a and s.gmsex_submitted_b then s.gmsex_answers_a else null end,
+    'gmsexAnswersB', case when s.gmsex_submitted_a and s.gmsex_submitted_b then s.gmsex_answers_b else null end,
+    'gmsexScoresA', case when s.gmsex_submitted_a and s.gmsex_submitted_b then s.gmsex_scores_a else null end,
+    'gmsexScoresB', case when s.gmsex_submitted_a and s.gmsex_submitted_b then s.gmsex_scores_b else null end,
+    'nsssSubmittedA', s.nsss_submitted_a,
+    'nsssSubmittedB', s.nsss_submitted_b,
+    'nsssAnsweredCountA', (select count(*) from jsonb_array_elements(s.nsss_answers_a) as answer where jsonb_typeof(answer) = 'number'),
+    'nsssAnsweredCountB', (select count(*) from jsonb_array_elements(s.nsss_answers_b) as answer where jsonb_typeof(answer) = 'number'),
+    'myNsssAnswers', case when v_role = 'A' then s.nsss_answers_a else s.nsss_answers_b end,
+    'nsssAnswersA', case when s.nsss_submitted_a and s.nsss_submitted_b then s.nsss_answers_a else null end,
+    'nsssAnswersB', case when s.nsss_submitted_a and s.nsss_submitted_b then s.nsss_answers_b else null end,
+    'nsssScoresA', case when s.nsss_submitted_a and s.nsss_submitted_b then s.nsss_scores_a else null end,
+    'nsssScoresB', case when s.nsss_submitted_a and s.nsss_submitted_b then s.nsss_scores_b else null end,
+    'kosSubmittedA', s.kos_submitted_a,
+    'kosSubmittedB', s.kos_submitted_b,
+    'kosAnsweredCountA', (select count(*) from jsonb_array_elements(s.kos_answers_a) as answer where jsonb_typeof(answer) = 'number'),
+    'kosAnsweredCountB', (select count(*) from jsonb_array_elements(s.kos_answers_b) as answer where jsonb_typeof(answer) = 'number'),
+    'myKosAnswers', case when v_role = 'A' then s.kos_answers_a else s.kos_answers_b end,
+    'kosAnswersA', case when s.kos_submitted_a and s.kos_submitted_b then s.kos_answers_a else null end,
+    'kosAnswersB', case when s.kos_submitted_a and s.kos_submitted_b then s.kos_answers_b else null end,
+    'kosScoresA', case when s.kos_submitted_a and s.kos_submitted_b then s.kos_scores_a else null end,
+    'kosScoresB', case when s.kos_submitted_a and s.kos_submitted_b then s.kos_scores_b else null end,
+    'promisSubmittedA', s.promis_submitted_a,
+    'promisSubmittedB', s.promis_submitted_b,
+    'promisAnsweredCountA', public._promis_answered_count(s.promis_response_a),
+    'promisAnsweredCountB', public._promis_answered_count(s.promis_response_b),
+    'promisRequiredCountA', public._promis_required_count(s.promis_response_a),
+    'promisRequiredCountB', public._promis_required_count(s.promis_response_b),
+    'myPromisResponse', case when v_role = 'A' then s.promis_response_a else s.promis_response_b end,
+    'promisResponseA', case when s.promis_submitted_a and s.promis_submitted_b then s.promis_response_a else null end,
+    'promisResponseB', case when s.promis_submitted_a and s.promis_submitted_b then s.promis_response_b else null end,
+    'promisScoresA', case when s.promis_submitted_a and s.promis_submitted_b then s.promis_scores_a else null end,
+    'promisScoresB', case when s.promis_submitted_a and s.promis_submitted_b then s.promis_scores_b else null end,
+    'rfsSubmittedA', s.rfs_submitted_a,
+    'rfsSubmittedB', s.rfs_submitted_b,
+    'rfsAnsweredCountA', (select count(*) from jsonb_array_elements(s.rfs_answers_a) as answer where jsonb_typeof(answer) = 'number'),
+    'rfsAnsweredCountB', (select count(*) from jsonb_array_elements(s.rfs_answers_b) as answer where jsonb_typeof(answer) = 'number'),
+    'myRfsAnswers', case when v_role = 'A' then s.rfs_answers_a else s.rfs_answers_b end,
+    'rfsAnswersA', case when s.rfs_submitted_a and s.rfs_submitted_b then s.rfs_answers_a else null end,
+    'rfsAnswersB', case when s.rfs_submitted_a and s.rfs_submitted_b then s.rfs_answers_b else null end,
+    'rfsScoresA', case when s.rfs_submitted_a and s.rfs_submitted_b then s.rfs_scores_a else null end,
+    'rfsScoresB', case when s.rfs_submitted_a and s.rfs_submitted_b then s.rfs_scores_b else null end,
     'spaffEvents', case when s.submitted_a and s.submitted_b then s.spaff_events else '[]'::jsonb end,
     'spaffRatings', case when s.submitted_a and s.submitted_b then s.spaff_ratings else '{"A": {}, "B": {}}'::jsonb end,
     'expiresAt', s.expires_at,
@@ -682,6 +1109,16 @@ revoke execute on function public._valid_cpq_answers(jsonb) from public, anon, a
 revoke execute on function public._valid_scale_answers(jsonb, integer, integer) from public, anon, authenticated;
 revoke execute on function public._valid_dci_scores(jsonb) from public, anon, authenticated;
 revoke execute on function public._score_dci_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._valid_csi_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_csi_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_gmsex_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_nsss_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_kos_answers(jsonb) from public, anon, authenticated;
+revoke execute on function public._valid_promis_response(jsonb) from public, anon, authenticated;
+revoke execute on function public._promis_required_count(jsonb) from public, anon, authenticated;
+revoke execute on function public._promis_answered_count(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_promis_response(jsonb) from public, anon, authenticated;
+revoke execute on function public._score_rfs_answers(jsonb) from public, anon, authenticated;
 revoke execute on function public._valid_observation_events(jsonb) from public, anon, authenticated;
 revoke execute on function public._valid_spaff_ratings(jsonb) from public, anon, authenticated;
 
@@ -691,6 +1128,8 @@ revoke execute on function public.join_couple_session(text, text) from public;
 revoke execute on function public.save_couple_answers(text, uuid, jsonb, boolean) from public;
 revoke execute on function public.save_ecr_answers(text, uuid, jsonb, boolean) from public;
 revoke execute on function public.save_dci_data(text, uuid, jsonb, jsonb, boolean) from public;
+revoke execute on function public.save_relationship_measure(text, uuid, text, jsonb, boolean) from public;
+revoke execute on function public.save_promis_sexfs(text, uuid, jsonb, boolean) from public;
 revoke execute on function public.get_couple_session(text, uuid) from public;
 revoke execute on function public.save_spaff_observation(text, uuid, jsonb, jsonb) from public;
 revoke execute on function public.delete_couple_session(text, uuid) from public;
@@ -701,6 +1140,8 @@ grant execute on function public.join_couple_session(text, text) to anon, authen
 grant execute on function public.save_couple_answers(text, uuid, jsonb, boolean) to anon, authenticated;
 grant execute on function public.save_ecr_answers(text, uuid, jsonb, boolean) to anon, authenticated;
 grant execute on function public.save_dci_data(text, uuid, jsonb, jsonb, boolean) to anon, authenticated;
+grant execute on function public.save_relationship_measure(text, uuid, text, jsonb, boolean) to anon, authenticated;
+grant execute on function public.save_promis_sexfs(text, uuid, jsonb, boolean) to anon, authenticated;
 grant execute on function public.get_couple_session(text, uuid) to anon, authenticated;
 grant execute on function public.save_spaff_observation(text, uuid, jsonb, jsonb) to anon, authenticated;
 grant execute on function public.delete_couple_session(text, uuid) to anon, authenticated;

@@ -22,7 +22,7 @@
     const modernResult = await callCloudRpc(modern, 'cpq_service_status', {}, {
       fetchImpl: async (url, options) => {
         request = { url, options };
-        return new Response(JSON.stringify({ status: 'ok', schemaVersion: 6, features: ['serverDciScoring', 'measureProgressCounts'] }), { status: 200 });
+        return new Response(JSON.stringify({ status: 'ok', schemaVersion: 8, features: ['serverDciScoring', 'measureProgressCounts', 'relationshipOutcomeMeasures', 'sexSubMeasures', 'promisSexFsProfiles'] }), { status: 200 });
       }
     });
     assert(modernResult.status === 'ok', 'modern RPC result');
@@ -38,7 +38,7 @@
     });
 
     await probeCloudService(modern, {
-      fetchImpl: async () => new Response(JSON.stringify({ status: 'ok', schemaVersion: 6, features: ['serverDciScoring', 'measureProgressCounts'] }), { status: 200 })
+      fetchImpl: async () => new Response(JSON.stringify({ status: 'ok', schemaVersion: 8, features: ['serverDciScoring', 'measureProgressCounts', 'relationshipOutcomeMeasures', 'sexSubMeasures', 'promisSexFsProfiles'] }), { status: 200 })
     });
     let mismatch = false;
     try {
