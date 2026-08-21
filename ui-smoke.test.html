@@ -25,8 +25,28 @@
       assert(doc.querySelector('#communicationStrainValue'), 'communication strain result card');
       assert(doc.querySelector('#divorceProbabilityValue').textContent.trim() === '不可计算', 'probability disabled by default');
       assert(doc.querySelectorAll('#ecrQuestions .question').length === 36, 'ECR-R item count');
-      assert(doc.querySelectorAll('#dciScoreGrid input').length === 12, 'DCI manual score fields');
+      assert(doc.querySelectorAll('#dciQuestions .question').length === 37, 'complete official DCI-37 item count');
+      assert(doc.querySelector('#dciStatus').textContent.includes('完整 37 题'), 'official DCI status');
       assert(doc.querySelector('#assessmentDate').value, 'longitudinal date initialization');
+
+      doc.querySelector('[data-tab="questionnaire"]').click();
+      const firstCpqChoice = doc.querySelector('#questions .question input[value="1"]');
+      firstCpqChoice.click();
+      assert(firstCpqChoice.checked, 'single-click CPQ response');
+      assert(doc.querySelector('#progressA').textContent.startsWith('1/35'), 'immediate CPQ progress');
+      assert(doc.querySelector('#cpqSyncStatus').textContent === '本地即时暂存', 'local CPQ save feedback');
+      const answerCpqStage = stage => {
+        doc.querySelector(`.stage[data-stage="${stage}"]`).click();
+        doc.querySelectorAll('#questions .question').forEach(question => question.querySelector('input[value="1"]').click());
+      };
+      ['emergence', 'discussion', 'after'].forEach(answerCpqStage);
+      doc.querySelector('#submitAnswersBtn').click();
+      ['emergence', 'discussion', 'after'].forEach(answerCpqStage);
+      doc.querySelector('#submitAnswersBtn').click();
+      assert(doc.querySelector('#questionnaire').classList.contains('active'), 'CPQ results stay in questionnaire flow');
+      assert(!doc.querySelector('[data-tab="results"]'), 'separate results tab removed');
+      assert(!doc.querySelector('#resultContent').hidden, 'embedded CPQ result unlock');
+      assert(doc.querySelectorAll('#scoreCards .score-summary-card').length === 3, 'three CPQ score summary cards');
 
       await waitFor(() => !doc.querySelector('#cloudStatus').textContent.includes('正在检查'));
       const cloudOnline = doc.querySelector('#cloudStatus').textContent === '远程服务在线';

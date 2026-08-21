@@ -1,3 +1,50 @@
-// The DCI item text and scoring key are not bundled in this public repository.
-// Configure a legitimately obtained item bank that matches dci-config.example.js.
-window.CPQ_DCI_ITEM_BANK = null;
+// Official English DCI-37 wording and scoring metadata.
+// Source and permission statement: Bodenmann (2008), as reproduced in
+// Simmons & Lehmann (2012). The source states that no further permission is
+// needed for use or reproduction from Guy Bodenmann. Preserve the attribution.
+window.CPQ_DCI_ITEM_BANK = {
+  version: 'DCI-37 · Bodenmann (2008)',
+  language: 'official English',
+  authorizationConfirmed: true,
+  attribution: 'Copyright © 2008 Guy Bodenmann. Reproduced with permission. Cite Bodenmann (2008).',
+  sourceUrl: 'https://www.researchgate.net/profile/Guy-Bodenmann/publication/323285418_Dyadic_Coping_Inventory/links/5a901eeea6fdccecff00ce52/Dyadic-Coping-Inventory.pdf',
+  items: [
+    { id: 1, text: 'I let my partner know that I appreciate his/her practical support, advice, or help.', section: 'How you communicate your stress to your partner', subscale: 'selfStressCommunication', reverse: false },
+    { id: 2, text: 'I ask my partner to do things for me when I have too much to do.', section: 'How you communicate your stress to your partner', subscale: 'selfStressCommunication', reverse: false },
+    { id: 3, text: 'I show my partner through my behavior when I am not doing well or when I have problems.', section: 'How you communicate your stress to your partner', subscale: 'selfStressCommunication', reverse: false },
+    { id: 4, text: 'I tell my partner openly how I feel and that I would appreciate his/her support.', section: 'How you communicate your stress to your partner', subscale: 'selfStressCommunication', reverse: false },
+    { id: 5, text: 'My partner shows empathy and understanding to me.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerSupportive', reverse: false },
+    { id: 6, text: 'My partner expresses that he/she is on my side.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerSupportive', reverse: false },
+    { id: 7, text: 'My partner blames me for not coping well enough with stress.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerNegative', reverse: true },
+    { id: 8, text: 'My partner helps me to see stressful situations in a different light.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerSupportive', reverse: false },
+    { id: 9, text: 'My partner listens to me and gives me the opportunity to communicate what really bothers me.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerSupportive', reverse: false },
+    { id: 10, text: 'My partner does not take my stress seriously.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerNegative', reverse: true },
+    { id: 11, text: 'My partner provides support, but does so unwillingly and unmotivated.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerNegative', reverse: true },
+    { id: 12, text: 'My partner takes on things that I normally do in order to help me out.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerDelegated', reverse: false },
+    { id: 13, text: 'My partner helps me analyze the situation so that I can better face the problem.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerSupportive', reverse: false },
+    { id: 14, text: 'When I am too busy, my partner helps me out.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerDelegated', reverse: false },
+    { id: 15, text: 'When I am stressed, my partner tends to withdraw.', section: 'What your partner does when you are feeling stressed', subscale: 'partnerNegative', reverse: true },
+    { id: 16, text: 'My partner lets me know that he/she appreciates my practical support, advice, or help.', section: 'How your partner communicates when he/she is feeling stressed', subscale: 'partnerStressCommunication', reverse: false },
+    { id: 17, text: 'My partner asks me to do things for him/her when he/she has too much to do.', section: 'How your partner communicates when he/she is feeling stressed', subscale: 'partnerStressCommunication', reverse: false },
+    { id: 18, text: 'My partner shows me through his/her behavior that he/she is not doing well or when he/she has problems.', section: 'How your partner communicates when he/she is feeling stressed', subscale: 'partnerStressCommunication', reverse: false },
+    { id: 19, text: 'My partner tells me openly how he/she feels and that he/she would appreciate my support.', section: 'How your partner communicates when he/she is feeling stressed', subscale: 'partnerStressCommunication', reverse: false },
+    { id: 20, text: 'I show empathy and understanding to my partner.', section: 'What you do when your partner communicates stress', subscale: 'selfSupportive', reverse: false },
+    { id: 21, text: 'I express to my partner that I am on his/her side.', section: 'What you do when your partner communicates stress', subscale: 'selfSupportive', reverse: false },
+    { id: 22, text: 'I blame my partner for not coping well enough with stress.', section: 'What you do when your partner communicates stress', subscale: 'selfNegative', reverse: true },
+    { id: 23, text: 'I tell my partner that his/her stress is not that bad and help him/her to see the situation in a different light.', section: 'What you do when your partner communicates stress', subscale: 'selfSupportive', reverse: false },
+    { id: 24, text: 'I listen to my partner and give him/her space and time to communicate what really bothers him/her.', section: 'What you do when your partner communicates stress', subscale: 'selfSupportive', reverse: false },
+    { id: 25, text: 'I do not take my partner\u2019s stress seriously.', section: 'What you do when your partner communicates stress', subscale: 'selfNegative', reverse: true },
+    { id: 26, text: 'When my partner is stressed I tend to withdraw.', section: 'What you do when your partner communicates stress', subscale: 'selfNegative', reverse: true },
+    { id: 27, text: 'I provide support, but do it so unwillingly and unmotivated because I think that he/she should cope with his/her problems on his/her own.', section: 'What you do when your partner communicates stress', subscale: 'selfNegative', reverse: true },
+    { id: 28, text: 'I take on things that my partner would normally do in order to help him/her out.', section: 'What you do when your partner communicates stress', subscale: 'selfDelegated', reverse: false },
+    { id: 29, text: 'I try to analyze the situation together with my partner in an objective manner and help him/her to understand and change the problem.', section: 'What you do when your partner communicates stress', subscale: 'selfSupportive', reverse: false },
+    { id: 30, text: 'When my partner feels he/she has too much to do, I help him/her out.', section: 'What you do when your partner communicates stress', subscale: 'selfDelegated', reverse: false },
+    { id: 31, text: 'We try to cope with the problem together and search for ascertained solutions.', section: 'What you and your partner do when you are both feeling stressed', subscale: 'common', reverse: false },
+    { id: 32, text: 'We engage in a serious discussion about the problem and think through what has to be done.', section: 'What you and your partner do when you are both feeling stressed', subscale: 'common', reverse: false },
+    { id: 33, text: 'We help one another to put the problem in perspective and see it in a new light.', section: 'What you and your partner do when you are both feeling stressed', subscale: 'common', reverse: false },
+    { id: 34, text: 'We help each other relax with such things like massage, taking a bath together, or listening to music together.', section: 'What you and your partner do when you are both feeling stressed', subscale: 'common', reverse: false },
+    { id: 35, text: 'We are affectionate to each other, make love and try that way to cope with stress.', section: 'What you and your partner do when you are both feeling stressed', subscale: 'common', reverse: false },
+    { id: 36, text: 'I am satisfied with the support I receive from my partner and the way we deal with stress together.', section: 'How you evaluate your coping as a couple', subscale: 'evaluation', reverse: false },
+    { id: 37, text: 'I am satisfied with the support I receive from my partner and I find as a couple, the way we deal with stress together is effective.', section: 'How you evaluate your coping as a couple', subscale: 'evaluation', reverse: false }
+  ]
+};

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、DCI 接口、SPAFF-informed 观察与本地纵向分析。">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、完整英文 DCI-37、SPAFF-informed 观察与本地纵向分析。">
   <meta name="referrer" content="no-referrer">
   <title>CPQ-35 双人沟通模式问卷</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -34,10 +34,9 @@
     <button class="tab active" data-tab="session" type="button">01 · 测评会话</button>
     <button class="tab" data-tab="questionnaire" type="button">02 · CPQ-35</button>
     <button class="tab" data-tab="supplements" type="button">03 · ECR-R / DCI</button>
-    <button class="tab" data-tab="results" type="button">04 · 标准计分</button>
-    <button class="tab" data-tab="observation" type="button">05 · 观察 / SPAFF</button>
-    <button class="tab" data-tab="longitudinal" type="button">06 · 纵向档案</button>
-    <button class="tab" data-tab="methods" type="button">07 · 方法</button>
+    <button class="tab" data-tab="observation" type="button">04 · 观察 / SPAFF</button>
+    <button class="tab" data-tab="longitudinal" type="button">05 · 纵向档案</button>
+    <button class="tab" data-tab="methods" type="button">06 · 方法</button>
   </nav>
 
   <section id="session" class="panel active" tabindex="-1">
@@ -105,7 +104,7 @@
       <div><h2>依恋与共同应对</h2><p>ECR-R 与 DCI 是 CPQ 之外的独立构念，不与 CPQ 合成总分。</p></div>
     </div>
     <aside class="callout warning"><strong>语言与解释边界：</strong>ECR-R 英文题面来自量表作者公开页面，中文仅为未验证的阅读辅助，正式中文研究需使用经过授权和测量等值性验证的版本。两个维度均按连续分数报告，不自动划分依恋类型。</aside>
-    <aside class="callout"><strong>本地保存：</strong>ECR-R 与 DCI 当前只保存在本页内存，不同步到 Supabase。刷新、离开云会话或开始新测评前，请到“06 · 纵向档案”下载结果。</aside>
+    <aside class="callout"><strong>保存方式：</strong>远程会话中，ECR-R 与 DCI 草稿和提交状态会同步到 Supabase；双方分别提交同一量表前，不返回对方答案或分数。本地模式仍只保存在本页内存，刷新或开始新测评前请下载纵向档案。</aside>
     <article class="card">
       <div class="section-heading compact-heading">
         <div><h3>ECR-R 36题</h3><p>回想你通常在情感亲密关系中的体验，而不只针对最近一次冲突。</p></div>
@@ -132,7 +131,7 @@
 
     <article class="card">
       <div class="section-heading compact-heading">
-        <div><h3>DCI 37题 · 授权适配器</h3><p>测量双方的压力沟通、支持性／委托式／消极／共同应对。</p></div>
+        <div><h3>DCI 37题 · 官方英文版</h3><p>测量双方的压力沟通、支持性／委托式／消极／共同应对。</p></div>
         <div class="button-row">
           <label class="sr-only" for="dciPerson">DCI 当前作答者</label>
           <select id="dciPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
@@ -141,17 +140,22 @@
         </div>
       </div>
       <div id="dciStatus" class="callout warning"></div>
+      <div class="progress-grid supplemental-progress">
+        <div class="metric"><span>A 完成度</span><strong id="dciProgressA">0/37</strong></div>
+        <div class="metric"><span>B 完成度</span><strong id="dciProgressB">0/37</strong></div>
+      </div>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 = very rarely（非常少），2 = rarely（少），3 = sometimes（有时），4 = often（经常），5 = very often（非常经常）。题项保持原始英文，不以未经验证的中文自译替代正式版本。</p>
       <div id="dciQuestions" hidden></div>
       <div id="dciManualEntry">
         <p>当前未加载获准公开部署的 DCI 题库。若已使用合法题本和正式计分手册完成测量，可在下方录入当前伴侣的分量表原始分；留空表示该项未测。</p>
         <div id="dciScoreGrid" class="score-entry-grid"></div>
       </div>
       <p id="dciMessage" class="message" role="status" aria-live="polite"></p>
-      <div class="grid two">
-        <article class="metric-card"><h4>伴侣 A</h4><p>DCI 总分 <strong id="dciTotalA">—</strong></p></article>
-        <article class="metric-card"><h4>伴侣 B</h4><p>DCI 总分 <strong id="dciTotalB">—</strong></p></article>
+      <div id="dciResults" class="grid two" hidden>
+        <article class="metric-card"><h4>伴侣 A</h4><p>DCI 总分 <strong id="dciTotalA">—</strong></p><ul id="dciScoresA" class="dci-score-list"></ul></article>
+        <article class="metric-card"><h4>伴侣 B</h4><p>DCI 总分 <strong id="dciTotalB">—</strong></p><ul id="dciScoresB" class="dci-score-list"></ul></article>
       </div>
-      <p class="field-help">总分需按正式手册处理消极题并排除第36、37评价题。网站不根据未经配置的题面推导分数，也不套用未授权常模。</p>
+      <p class="field-help">计分严格使用原始题号：7、10、11、15、22、25、26、27 反向计分；总分为第1–35题之和，第36、37题仅作为满意度与效果评价，不进入总分。双方各自提交前不显示对方结果。来源与复用说明：<a href="https://www.researchgate.net/profile/Guy-Bodenmann/publication/323285418_Dyadic_Coping_Inventory/links/5a901eeea6fdccecff00ce52/Dyadic-Coping-Inventory.pdf">Bodenmann (2008), DCI-37</a>；Copyright © 2008 Guy Bodenmann，reproduced with permission。网站不套用未经核验的个体诊断或关系结局阈值。</p>
     </article>
   </section>
 
@@ -162,6 +166,7 @@
         <p>请根据你和伴侣通常如何处理关系问题作答，而不是只针对最近一次争执。</p>
       </div>
       <div class="button-row">
+        <span id="cpqSyncStatus" class="sync-status" data-state="local" role="status" aria-live="polite">本地即时暂存</span>
         <label class="sr-only" for="respondentSelect">当前作答者</label>
         <select id="respondentSelect">
           <option value="A">伴侣 A</option>
@@ -180,6 +185,54 @@
       <div class="metric"><span>当前阶段</span><strong id="currentStage">问题出现时</strong></div>
     </div>
     <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+    <p class="field-help">云端模式会向双方同步完成题数和锁定状态，但在双方提交前不会返回对方具体选择。单击选项会立即保留在本页，并在同步状态中显示云端写入结果。</p>
+
+    <section id="cpqResultsBlock" class="embedded-results" aria-labelledby="cpqResultsTitle">
+      <div class="section-heading results-heading">
+        <div><p class="eyebrow">提交后自动展开</p><h2 id="cpqResultsTitle">本次 CPQ-35 标准结果</h2><p>作答、提交和结果保留在同一页面；只有双方锁定后才计算。</p></div>
+        <button id="exportBtn" class="button primary" type="button" disabled>下载 CPQ 结果</button>
+      </div>
+      <div id="resultGate" class="callout">等待 A、B 双方完成并提交全部 35 题。</div>
+      <div id="resultContent" hidden>
+        <div class="result-group">
+          <div class="result-group-heading"><div><span class="result-kind standard">正式计分</span><h3>三个 Revised CPQ 分量表</h3></div><p>均为原始加总分，不合成为“关系总分”。</p></div>
+          <div id="scoreCards" class="score-summary-grid"></div>
+        </div>
+
+        <details class="card result-details">
+          <summary>查看同一互动方向的双方报告差异</summary>
+          <p>并排展示同一模式的两份报告，不把它们平均成一个总分；绝对差只表示报告差异。</p>
+          <div class="table-card">
+            <table>
+              <thead><tr><th scope="col">互动方向</th><th scope="col">A 的报告</th><th scope="col">B 的报告</th><th scope="col">绝对差</th></tr></thead>
+              <tbody id="comparisonRows"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <div class="result-group research-result-group">
+          <div class="result-group-heading"><div><span class="result-kind research">研究性派生</span><h3>辅助研究指标</h3></div><p>以下内容不属于 CPQ 正式计分。</p></div>
+          <div class="grid two research-output-grid">
+            <article class="card research-metric">
+              <h3>沟通压力研究指数</h3>
+              <p><strong id="communicationStrainValue" class="research-number">—</strong><span>/100</span></p>
+              <dl class="research-components">
+                <div><dt>低建设性沟通</dt><dd id="lowConstructiveValue">—</dd></div>
+                <div><dt>要求／回避</dt><dd id="demandWithdrawValue">—</dd></div>
+              </dl>
+              <p class="field-help">两项各占 50% 的透明派生描述，不是正式量表、诊断或离婚概率。</p>
+            </article>
+            <article class="card research-metric">
+              <h3>经校准的离婚概率模型</h3>
+              <p><strong id="divorceProbabilityValue" class="research-number unavailable">不可计算</strong></p>
+              <p id="divorceProbabilityDetail">未加载经过独立外部验证并获准部署的纵向模型。</p>
+              <p class="field-help">目标必须明确为某一期限内的法律离婚；不可用于未婚伴侣的分手结局。</p>
+            </article>
+          </div>
+        </div>
+        <aside class="callout"><strong>如何阅读：</strong>建设性沟通越高，表示报告了更多建设性模式；要求／回避越高，表示报告了更多对应模式。CPQ 没有统一的“健康／不健康”临床分界。</aside>
+      </div>
+    </section>
 
     <div class="stage-tabs" aria-label="CPQ 三个阶段">
       <button class="stage active" data-stage="emergence" type="button">问题出现时 · 4</button>
@@ -190,49 +243,6 @@
     <p class="scale-instruction"><strong>作答尺度：</strong>1 = 非常不可能，9 = 非常可能。请选择最接近实际情况的数字。</p>
     <div id="questions"></div>
     <p id="questionnaireMessage" class="message" role="status" aria-live="polite"></p>
-  </section>
-
-  <section id="results" class="panel" tabindex="-1">
-    <div class="section-heading">
-      <div><h2>Revised CPQ 标准计分</h2><p>双方完成并提交后才计算；三个分量表均使用题目加总分。</p></div>
-      <button id="exportBtn" class="button primary" type="button" disabled>导出结果 JSON</button>
-    </div>
-    <div id="resultGate" class="callout">等待 A、B 双方完成并提交全部 35 题。</div>
-    <div id="resultContent" hidden>
-      <article class="card table-card">
-        <h3>两位作答者的标准分量表</h3>
-        <table>
-          <thead><tr><th scope="col">分量表</th><th scope="col">理论范围</th><th scope="col">伴侣 A</th><th scope="col">伴侣 B</th></tr></thead>
-          <tbody id="scoreRows"></tbody>
-        </table>
-      </article>
-      <article class="card table-card">
-        <h3>同一互动方向的双方报告</h3>
-        <p>这里并排展示同一模式的两份报告，不把它们平均成一个“关系总分”。差值只表示报告差异。</p>
-        <table>
-          <thead><tr><th scope="col">互动方向</th><th scope="col">A 的报告</th><th scope="col">B 的报告</th><th scope="col">绝对差</th></tr></thead>
-          <tbody id="comparisonRows"></tbody>
-        </table>
-      </article>
-      <div class="grid two research-output-grid">
-        <article class="card research-metric">
-          <h3>沟通压力研究指数</h3>
-          <p><strong id="communicationStrainValue" class="research-number">—</strong><span>/100</span></p>
-          <dl class="research-components">
-            <div><dt>低建设性沟通</dt><dd id="lowConstructiveValue">—</dd></div>
-            <div><dt>要求／回避</dt><dd id="demandWithdrawValue">—</dd></div>
-          </dl>
-          <p class="field-help">等权派生指标：两项各占 50%。只描述当前沟通信号，不是正式量表、诊断或离婚概率。</p>
-        </article>
-        <article class="card research-metric">
-          <h3>经校准的离婚概率模型</h3>
-          <p><strong id="divorceProbabilityValue" class="research-number unavailable">不可计算</strong></p>
-          <p id="divorceProbabilityDetail">未加载经过独立外部验证并获准部署的纵向模型。</p>
-          <p class="field-help">目标必须明确为某一期限内的法律离婚；模型不可用于未婚伴侣的分手结局。</p>
-        </article>
-      </div>
-      <aside class="callout"><strong>如何阅读：</strong>建设性沟通分数越高，报告的建设性沟通越多；要求／回避分数越高，报告的对应模式越多。CPQ 本身不提供用于判断“健康／不健康”的统一临床分界。</aside>
-    </div>
   </section>
 
   <section id="observation" class="panel" tabindex="-1">
@@ -349,7 +359,7 @@
     <article class="card">
       <h2>研究指数与概率模型不是一回事</h2>
       <p>沟通压力研究指数把“低建设性沟通”和“四个要求／回避方向均值”标准化后各赋 50% 权重。它便于审计，但尚不是经验证的心理量表，也不代表某种事件发生的百分比。</p>
-      <p>离婚概率接口默认关闭。只有目标被限定为某个固定月数内的法律离婚，模型在独立队列完成外部验证，并经过人工部署批准后，结果页才会显示数字；否则明确显示“不可计算”。</p>
+      <p>离婚概率接口默认关闭。只有目标被限定为某个固定月数内的法律离婚，模型在独立队列完成外部验证，并经过人工部署批准后，02 页面中的结果区才会显示数字；否则明确显示“不可计算”。</p>
     </article>
     <aside class="callout warning"><strong>预测限制：</strong>跨 43 个纵向情侣数据集的研究发现，自陈变量能解释较多当前关系质量，却难以预测之后的关系质量变化。因此，本网站不从单次 CPQ 分数伪造个人概率；预留模型也必须通过纵向校准与独立外部验证。<a href="https://doi.org/10.1073/pnas.1917036117">Joel et al. (2020)</a></aside>
     <article class="card references">

@@ -73,10 +73,22 @@ const state = {
   dciAnswers: { A: blankDciAnswers(), B: blankDciAnswers() },
   dciSubmitted: { A: false, B: false },
   dciScores: { A: blankDciScores(), B: blankDciScores() },
+  cloudProgress: {
+    cpq: { A: 0, B: 0 },
+    ecr: { A: 0, B: 0 },
+    dci: { A: 0, B: 0 }
+  },
   importedRecords: []
 };
 
 let draftTimer = null;
+let cpqDraftRevision = 0;
+let cpqSyncedRevision = 0;
+let cpqSaveTail = Promise.resolve();
+let cpqSaveActive = false;
+let cpqSyncError = '';
+let cpqSubmitQueued = false;
+const supplementalDraftTimers = { ecr: null, dci: null };
 let cloudRefreshInFlight = false;
 let cloudAvailability = {
   status: inspectedCloudConfig.valid ? 'checking' : 'unconfigured',
@@ -128,7 +140,9 @@ function activateTab(name) {
   $$('.panel').forEach(panel => panel.classList.toggle('active', panel.id === name));
   const panel = document.getElementById(name);
   if (panel) panel.focus({ preventScroll: true });
-  if (name === 'results') renderResults();
+  if (name === 'questionnaire' && cloudReady() && state.session.mode === 'cloud') {
+    refreshCloudSession({ silent: true });
+  }
 }
 
 function setupTabs() {
@@ -153,6 +167,15 @@ function resetAssessment(mode = 'local') {
   state.dciAnswers = { A: blankDciAnswers(), B: blankDciAnswers() };
   state.dciSubmitted = { A: false, B: false };
   state.dciScores = { A: blankDciScores(), B: blankDciScores() };
+  state.cloudProgress = { cpq: { A: 0, B: 0 }, ecr: { A: 0, B: 0 }, dci: { A: 0, B: 0 } };
+  clearTimeout(draftTimer);
+  draftTimer = null;
+  cpqDraftRevision = 0;
+  cpqSyncedRevision = 0;
+  cpqSaveTail = Promise.resolve();
+  cpqSaveActive = false;
+  cpqSyncError = '';
+  cpqSubmitQueued = false;
   if (mode === 'local') state.session = { mode: 'local', code: null, role: null, token: null, invitePin: null };
   renderAll();
 }
@@ -187,13 +210,41 @@ function setRespondent(person) {
 
 function renderProgress() {
   for (const person of ['A', 'B']) {
-    const inspection = inspectAnswers(state.answers[person]);
-    $(`#progress${person}`).textContent = `${inspection.answered}/35${state.submitted[person] ? ' · 已锁定' : ''}`;
+    const localAnswered = inspectAnswers(state.answers[person]).answered;
+    const answered = state.session.mode === 'cloud' && person !== state.session.role
+      ? state.cloudProgress.cpq[person]
+      : localAnswered;
+    $(`#progress${person}`).textContent = `${answered}/35${state.submitted[person] ? ' · 已锁定' : ''}`;
   }
   const current = inspectAnswers(state.answers[state.respondent]);
   $('#currentRespondent').textContent = state.respondent;
   $('#currentStage').textContent = CPQ_STAGES[state.stage].zh;
   $('#progressBar').style.width = `${Math.round(current.answered / 35 * 100)}%`;
+  renderCpqSyncStatus();
+}
+
+function renderCpqSyncStatus() {
+  const status = $('#cpqSyncStatus');
+  if (!status) return;
+  if (state.session.mode !== 'cloud') {
+    status.textContent = '本地即时暂存';
+    status.dataset.state = 'local';
+  } else if (cpqSyncError) {
+    status.textContent = '同步失败 · 将自动重试';
+    status.dataset.state = 'error';
+  } else if (cpqSaveActive) {
+    status.textContent = '正在同步云端…';
+    status.dataset.state = 'syncing';
+  } else if (cpqDraftRevision !== cpqSyncedRevision) {
+    status.textContent = '已记录 · 等待同步';
+    status.dataset.state = 'pending';
+  } else if (state.submitted[state.respondent]) {
+    status.textContent = '云端已锁定';
+    status.dataset.state = 'locked';
+  } else {
+    status.textContent = '云端已同步';
+    status.dataset.state = 'synced';
+  }
 }
 
 function makeQuestion(item, locked) {
@@ -230,6 +281,11 @@ function makeQuestion(item, locked) {
     radio.checked = state.answers[state.respondent][item.id - 1] === value;
     radio.addEventListener('change', () => {
       state.answers[state.respondent][item.id - 1] = value;
+      if (state.session.mode === 'cloud') {
+        cpqDraftRevision += 1;
+        cpqSyncError = '';
+        state.cloudProgress.cpq[state.respondent] = inspectAnswers(state.answers[state.respondent]).answered;
+      }
       renderProgress();
       scheduleCloudDraft();
     });
@@ -249,7 +305,7 @@ function renderQuestions() {
   $('#respondentSelect').value = state.respondent;
   $('#respondentSelect').disabled = state.session.mode === 'cloud' || (state.session.mode === 'local' && state.submitted.A !== state.submitted.B);
   $('#saveDraftBtn').disabled = locked;
-  $('#submitAnswersBtn').disabled = locked;
+  $('#submitAnswersBtn').disabled = locked || cpqSubmitQueued;
   $('#clearAnswersBtn').disabled = locked;
   $$('.stage').forEach(button => button.classList.toggle('active', button.dataset.stage === state.stage));
   renderProgress();
@@ -290,6 +346,7 @@ function makeEcrQuestion(item, person, locked) {
     radio.addEventListener('change', () => {
       state.ecrAnswers[person][item.id - 1] = value;
       renderEcrProgress();
+      scheduleSupplementalDraft('ecr');
     });
     const text = document.createElement('span');
     text.textContent = String(value);
@@ -303,18 +360,14 @@ function makeEcrQuestion(item, person, locked) {
 function renderEcrProgress() {
   for (const person of ['A', 'B']) {
     const inspection = inspectEcrAnswers(state.ecrAnswers[person]);
-    $(`#ecrProgress${person}`).textContent = `${inspection.answered}/36${state.ecrSubmitted[person] ? ' · 已锁定' : ''}`;
+    const answered = state.session.mode === 'cloud' && person !== state.session.role
+      ? state.cloudProgress.ecr[person]
+      : inspection.answered;
+    $(`#ecrProgress${person}`).textContent = `${answered}/36${state.ecrSubmitted[person] ? ' · 已锁定' : ''}`;
   }
 }
 
-function renderEcr() {
-  const person = state.ecrPerson;
-  const locked = state.ecrSubmitted[person];
-  $('#ecrPerson').value = person;
-  $('#submitEcrBtn').disabled = locked;
-  $('#clearEcrBtn').disabled = locked;
-  $('#ecrQuestions').replaceChildren(...ECR_R_ITEMS.map(item => makeEcrQuestion(item, person, locked)));
-  renderEcrProgress();
+function renderEcrResults() {
   const scores = { A: scoreEcrR(state.ecrAnswers.A), B: scoreEcrR(state.ecrAnswers.B) };
   const ready = state.ecrSubmitted.A && state.ecrSubmitted.B && scores.A.complete && scores.B.complete;
   $('#ecrResults').hidden = !ready;
@@ -324,14 +377,31 @@ function renderEcr() {
       $(`#ecrAvoidance${target}`).textContent = scores[target].avoidance.toFixed(2);
     }
   }
+}
+
+function renderEcr() {
+  if (state.session.mode === 'cloud') state.ecrPerson = state.session.role;
+  const person = state.ecrPerson;
+  const locked = state.ecrSubmitted[person];
+  $('#ecrPerson').value = person;
+  $('#ecrPerson').disabled = state.session.mode === 'cloud';
+  $('#submitEcrBtn').disabled = locked;
+  $('#clearEcrBtn').disabled = locked;
+  $('#ecrQuestions').replaceChildren(...ECR_R_ITEMS.map(item => makeEcrQuestion(item, person, locked)));
+  renderEcrProgress();
+  renderEcrResults();
   setMessage('#ecrMessage', locked ? `伴侣 ${person} 的 ECR-R 已提交并锁定。` : '');
 }
 
-function submitEcr() {
+async function submitEcr() {
   const person = state.ecrPerson;
   const inspection = inspectEcrAnswers(state.ecrAnswers[person]);
   if (!inspection.complete) {
     setMessage('#ecrMessage', inspection.invalid.length ? `存在非法题值：${inspection.invalid.join('、')}。` : `还有 ${inspection.missing.length} 题未完成。`);
+    return;
+  }
+  if (state.session.mode === 'cloud') {
+    await saveEcrToCloud(true);
     return;
   }
   state.ecrSubmitted[person] = true;
@@ -357,7 +427,12 @@ function makeDciQuestion(item, person, locked) {
     input.name = `dci-${person}-q${item.id}`;
     input.value = String(value);
     input.checked = state.dciAnswers[person][item.id - 1] === value;
-    input.addEventListener('change', () => { state.dciAnswers[person][item.id - 1] = value; });
+    input.addEventListener('change', () => {
+      state.dciAnswers[person][item.id - 1] = value;
+      renderDciProgress();
+      setMessage('#dciMessage', state.session.mode === 'cloud' ? 'DCI 草稿正在云端同步。' : 'DCI 答案暂存在当前页面；提交后锁定。');
+      scheduleSupplementalDraft('dci');
+    });
     const text = document.createElement('span');
     text.textContent = String(value);
     label.append(input, text);
@@ -367,12 +442,52 @@ function makeDciQuestion(item, person, locked) {
   return fieldset;
 }
 
+function renderDciProgress() {
+  for (const person of ['A', 'B']) {
+    const localAnswered = state.dciAnswers[person].filter(value => Number.isInteger(value) && value >= 1 && value <= 5).length;
+    const answered = state.session.mode === 'cloud' && person !== state.session.role
+      ? state.cloudProgress.dci[person]
+      : localAnswered;
+    $(`#dciProgress${person}`).textContent = `${answered}/37`;
+  }
+}
+
+function renderDciQuestions(person, locked) {
+  const fragment = document.createDocumentFragment();
+  let currentSection = '';
+  for (const item of [...dciItemBank.items].sort((a, b) => a.id - b.id)) {
+    if (item.section !== currentSection) {
+      currentSection = item.section;
+      const heading = document.createElement('h4');
+      heading.className = 'dci-section-heading';
+      heading.textContent = item.section;
+      fragment.append(heading);
+    }
+    fragment.append(makeDciQuestion(item, person, locked));
+  }
+  $('#dciQuestions').replaceChildren(fragment);
+}
+
 function renderDciTotals() {
+  let ready = state.dciSubmitted.A && state.dciSubmitted.B;
   for (const person of ['A', 'B']) {
     const validation = validateDciScores(state.dciScores[person]);
     const total = validation.valid ? validation.scores.totalWithoutEvaluation : null;
     $(`#dciTotal${person}`).textContent = Number.isFinite(total) ? `${total}/175` : '—';
+    if (!validation.available || !Number.isFinite(total)) ready = false;
+    const breakdown = $(`#dciScores${person}`);
+    if (breakdown) {
+      breakdown.replaceChildren(...Object.entries(DCI_SCORE_FIELDS)
+        .filter(([key]) => key !== 'totalWithoutEvaluation')
+        .map(([key, definition]) => {
+          const row = document.createElement('li');
+          const value = validation.scores[key];
+          row.textContent = `${definition.label}：${Number.isFinite(value) ? `${value}/${definition.max}` : '—'}`;
+          return row;
+        }));
+    }
   }
+  $('#dciResults').hidden = !ready;
 }
 
 function renderDciManualEntry(person) {
@@ -386,6 +501,7 @@ function renderDciManualEntry(person) {
     input.max = String(definition.max);
     input.step = '1';
     input.value = state.dciScores[person][key] ?? '';
+    input.disabled = state.dciSubmitted[person];
     input.setAttribute('aria-label', `伴侣 ${person} · ${definition.label}`);
     const help = document.createElement('small');
     help.textContent = `允许范围 ${definition.min}–${definition.max}`;
@@ -394,8 +510,11 @@ function renderDciManualEntry(person) {
       state.dciScores[person][key] = raw === '' ? null : Number(raw);
       const validation = validateDciScores(state.dciScores[person]);
       event.target.setAttribute('aria-invalid', String(!validation.valid && validation.invalid.includes(key)));
-      setMessage('#dciMessage', validation.valid ? 'DCI 分量表结果已保留在当前页面；下载纵向档案以保存。' : `超出允许范围：${validation.invalid.map(field => DCI_SCORE_FIELDS[field].label).join('、')}。`);
+      setMessage('#dciMessage', validation.valid
+        ? (state.session.mode === 'cloud' ? 'DCI 分量表草稿正在云端同步。' : 'DCI 分量表结果已保留在当前页面；下载纵向档案以保存。')
+        : `超出允许范围：${validation.invalid.map(field => DCI_SCORE_FIELDS[field].label).join('、')}。`);
       renderDciTotals();
+      scheduleSupplementalDraft('dci');
     });
     wrapper.append(label, input, help);
     return wrapper;
@@ -404,34 +523,53 @@ function renderDciManualEntry(person) {
 }
 
 function renderDci() {
+  if (state.session.mode === 'cloud') state.dciPerson = state.session.role;
   const person = state.dciPerson;
   $('#dciPerson').value = person;
+  $('#dciPerson').disabled = state.session.mode === 'cloud';
   const bank = validateDciItemBank(dciItemBank);
   $('#dciQuestions').hidden = !bank.valid;
   $('#dciManualEntry').hidden = bank.valid;
-  $('#submitDciBtn').hidden = !bank.valid;
+  $('#submitDciBtn').hidden = false;
+  $('#submitDciBtn').textContent = bank.valid ? '提交当前 DCI' : '锁定当前 DCI 分数';
+  $('#submitDciBtn').disabled = state.dciSubmitted[person];
+  $('#clearDciBtn').disabled = state.dciSubmitted[person];
   if (bank.valid) {
     $('#dciStatus').classList.remove('warning');
-    $('#dciStatus').textContent = `已加载 ${bank.version}（${bank.language}）授权题库。1 = 非常少，5 = 非常经常；请独立作答。`;
+    $('#dciStatus').textContent = `已加载 ${bank.version}（${bank.language}）完整 37 题。1 = very rarely，5 = very often；请按通常情况独立作答。`;
     const locked = state.dciSubmitted[person];
     $('#submitDciBtn').disabled = locked;
-    $('#dciQuestions').replaceChildren(...[...dciItemBank.items].sort((a, b) => a.id - b.id).map(item => makeDciQuestion(item, person, locked)));
+    renderDciQuestions(person, locked);
   } else {
     $('#dciStatus').classList.add('warning');
-    $('#dciStatus').textContent = '未加载获准部署的 DCI 题库：公开网站仅提供正式分量表结果录入和纵向保存。';
+    $('#dciStatus').textContent = '未加载获准部署的 DCI 题库：公开网站仅提供正式分量表结果录入、云端会话同步和纵向保存。';
     renderDciManualEntry(person);
   }
+  renderDciProgress();
   renderDciTotals();
 }
 
-function submitDci() {
+async function submitDci() {
   const person = state.dciPerson;
-  const result = scoreAuthorizedDci(state.dciAnswers[person], dciItemBank);
-  if (!result.complete) {
-    setMessage('#dciMessage', result.reason);
+  const bank = validateDciItemBank(dciItemBank);
+  if (bank.valid) {
+    const result = scoreAuthorizedDci(state.dciAnswers[person], dciItemBank);
+    if (!result.complete) {
+      setMessage('#dciMessage', result.reason);
+      return;
+    }
+    state.dciScores[person] = { ...blankDciScores(), ...result.scores };
+  } else {
+    const validation = validateDciScores(state.dciScores[person]);
+    if (!validation.valid || !validation.available) {
+      setMessage('#dciMessage', validation.valid ? '请至少录入一项按正式手册获得的 DCI 分数。' : `超出允许范围：${validation.invalid.map(field => DCI_SCORE_FIELDS[field].label).join('、')}。`);
+      return;
+    }
+  }
+  if (state.session.mode === 'cloud') {
+    await saveDciToCloud(true);
     return;
   }
-  state.dciScores[person] = { ...blankDciScores(), ...result.scores };
   state.dciSubmitted[person] = true;
   if (person === 'A' && !state.dciSubmitted.B) state.dciPerson = 'B';
   renderDci();
@@ -474,8 +612,8 @@ function renderSession() {
   if (active) {
     $('#activeCode').textContent = state.session.code;
     $('#activeRole').textContent = state.session.role;
-    $('#submitA').textContent = state.submitted.A ? '已锁定' : '未提交';
-    $('#submitB').textContent = state.submitted.B ? '已锁定' : '未提交';
+    $('#submitA').textContent = state.submitted.A ? '35/35 · 已锁定' : `${state.cloudProgress.cpq.A}/35 · 作答中`;
+    $('#submitB').textContent = state.submitted.B ? '35/35 · 已锁定' : `${state.cloudProgress.cpq.B}/35 · 作答中`;
   }
 }
 
@@ -497,24 +635,38 @@ function renderResults() {
   if (!ready) {
     const A = inspectAnswers(state.answers.A);
     const B = inspectAnswers(state.answers.B);
-    $('#resultGate').textContent = `等待双方完成并提交。A：${A.answered}/35${state.submitted.A ? '，已锁定' : ''}；B：${B.answered}/35${state.submitted.B ? '，已锁定' : ''}。`;
+    const answeredA = state.session.mode === 'cloud' ? state.cloudProgress.cpq.A : A.answered;
+    const answeredB = state.session.mode === 'cloud' ? state.cloudProgress.cpq.B : B.answered;
+    $('#resultGate').textContent = `等待双方完成并提交。A：${answeredA}/35${state.submitted.A ? '，已锁定' : ''}；B：${answeredB}/35${state.submitted.B ? '，已锁定' : ''}。`;
     return;
   }
 
-  const scoreRows = [];
+  const scoreCards = [];
   for (const [key, definition] of Object.entries(CPQ_SCORING)) {
-    const row = document.createElement('tr');
-    const label = document.createElement('th');
-    label.scope = 'row';
-    label.textContent = `${definition.labelZh} / ${definition.labelEn}`;
-    const range = document.createElement('td');
-    range.textContent = `${definition.min}–${definition.max}`;
-    row.append(label, range);
-    appendScoreCell(row, dyad.A.scores[key]);
-    appendScoreCell(row, dyad.B.scores[key]);
-    scoreRows.push(row);
+    const card = document.createElement('article');
+    card.className = 'score-summary-card';
+    const title = document.createElement('h4');
+    title.textContent = definition.labelZh;
+    const english = document.createElement('small');
+    english.textContent = definition.labelEn;
+    const pair = document.createElement('dl');
+    pair.className = 'score-pair';
+    for (const person of ['A', 'B']) {
+      const item = document.createElement('div');
+      const label = document.createElement('dt');
+      label.textContent = `伴侣 ${person}`;
+      const value = document.createElement('dd');
+      value.textContent = String(dyad[person].scores[key]);
+      item.append(label, value);
+      pair.append(item);
+    }
+    const range = document.createElement('p');
+    range.className = 'field-help';
+    range.textContent = `理论范围 ${definition.min}–${definition.max}`;
+    card.append(title, english, pair, range);
+    scoreCards.push(card);
   }
-  $('#scoreRows').replaceChildren(...scoreRows);
+  $('#scoreCards').replaceChildren(...scoreCards);
 
   const comparisons = [
     ['建设性沟通', dyad.comparisons.constructiveCommunication],
@@ -554,6 +706,11 @@ function renderResults() {
   }
 }
 
+function revealCpqResults() {
+  if (!$('#questionnaire').classList.contains('active')) activateTab('questionnaire');
+  requestAnimationFrame(() => $('#cpqResultsBlock').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
 function saveSessionToken() {
   if (state.session.mode !== 'cloud') return;
   const { mode, code, role, token } = state.session;
@@ -566,6 +723,8 @@ function loadSessionToken() {
     if (saved && /^\d{6}$/.test(saved.code) && ['A', 'B'].includes(saved.role) && saved.token) {
       state.session = { mode: 'cloud', code: saved.code, role: saved.role, token: saved.token, invitePin: null };
       state.respondent = saved.role;
+      state.ecrPerson = saved.role;
+      state.dciPerson = saved.role;
       return true;
     }
   } catch (_) {
@@ -591,6 +750,8 @@ async function createCloudSession() {
     resetAssessment('cloud');
     state.session = { mode: 'cloud', code: data.code, role: 'A', token: data.token, invitePin: pin };
     state.respondent = 'A';
+    state.ecrPerson = 'A';
+    state.dciPerson = 'A';
     saveSessionToken();
     $('#createPin').value = '';
     renderAll();
@@ -613,6 +774,8 @@ async function joinCloudSession() {
     resetAssessment('cloud');
     state.session = { mode: 'cloud', code, role: 'B', token: data.token, invitePin: null };
     state.respondent = 'B';
+    state.ecrPerson = 'B';
+    state.dciPerson = 'B';
     saveSessionToken();
     $('#joinPin').value = '';
     await refreshCloudSession();
@@ -625,6 +788,25 @@ async function joinCloudSession() {
 function normalizeAnswers(value) {
   if (!Array.isArray(value) || value.length !== 35) return blankAnswers();
   return value.map(answer => Number.isInteger(answer) && answer >= 1 && answer <= 9 ? answer : null);
+}
+
+function normalizeEcrAnswers(value) {
+  if (!Array.isArray(value) || value.length !== 36) return blankEcrAnswers();
+  return value.map(answer => Number.isInteger(answer) && answer >= 1 && answer <= 7 ? answer : null);
+}
+
+function normalizeDciAnswers(value) {
+  if (!Array.isArray(value) || value.length !== 37) return blankDciAnswers();
+  return value.map(answer => Number.isInteger(answer) && answer >= 1 && answer <= 5 ? answer : null);
+}
+
+function normalizeDciScores(value) {
+  const validation = validateDciScores(value);
+  return validation.valid ? { ...blankDciScores(), ...validation.scores } : blankDciScores();
+}
+
+function normalizeAnsweredCount(value, maximum, fallback = 0) {
+  return Number.isInteger(value) && value >= 0 && value <= maximum ? value : fallback;
 }
 
 function normalizeEvents(value) {
@@ -659,7 +841,22 @@ async function refreshCloudSession({ silent = false } = {}) {
     const data = await rpc('get_couple_session', { p_code: state.session.code, p_token: state.session.token });
     state.submitted.A = Boolean(data.submittedA);
     state.submitted.B = Boolean(data.submittedB);
-    state.answers[state.session.role] = normalizeAnswers(data.myAnswers);
+    state.cloudProgress.cpq.A = normalizeAnsweredCount(data.answeredCountA, 35, state.submitted.A ? 35 : state.cloudProgress.cpq.A);
+    state.cloudProgress.cpq.B = normalizeAnsweredCount(data.answeredCountB, 35, state.submitted.B ? 35 : state.cloudProgress.cpq.B);
+    if (cpqDraftRevision === cpqSyncedRevision) {
+      state.answers[state.session.role] = normalizeAnswers(data.myAnswers);
+    }
+    state.ecrSubmitted.A = Boolean(data.ecrSubmittedA);
+    state.ecrSubmitted.B = Boolean(data.ecrSubmittedB);
+    state.cloudProgress.ecr.A = normalizeAnsweredCount(data.ecrAnsweredCountA, 36, state.ecrSubmitted.A ? 36 : state.cloudProgress.ecr.A);
+    state.cloudProgress.ecr.B = normalizeAnsweredCount(data.ecrAnsweredCountB, 36, state.ecrSubmitted.B ? 36 : state.cloudProgress.ecr.B);
+    state.ecrAnswers[state.session.role] = normalizeEcrAnswers(data.myEcrAnswers);
+    state.dciSubmitted.A = Boolean(data.dciSubmittedA);
+    state.dciSubmitted.B = Boolean(data.dciSubmittedB);
+    state.cloudProgress.dci.A = normalizeAnsweredCount(data.dciAnsweredCountA, 37, state.dciSubmitted.A ? 37 : state.cloudProgress.dci.A);
+    state.cloudProgress.dci.B = normalizeAnsweredCount(data.dciAnsweredCountB, 37, state.dciSubmitted.B ? 37 : state.cloudProgress.dci.B);
+    state.dciAnswers[state.session.role] = normalizeDciAnswers(data.myDciAnswers);
+    state.dciScores[state.session.role] = normalizeDciScores(data.myDciScores);
     if (data.answersA && data.answersB) {
       state.answers.A = normalizeAnswers(data.answersA);
       state.answers.B = normalizeAnswers(data.answersB);
@@ -671,7 +868,38 @@ async function refreshCloudSession({ silent = false } = {}) {
       state.events = [];
       state.spaffRatings = { A: blankSpaffRatings(), B: blankSpaffRatings() };
     }
-    renderAll();
+    if (data.ecrAnswersA && data.ecrAnswersB) {
+      state.ecrAnswers.A = normalizeEcrAnswers(data.ecrAnswersA);
+      state.ecrAnswers.B = normalizeEcrAnswers(data.ecrAnswersB);
+    } else {
+      const other = state.session.role === 'A' ? 'B' : 'A';
+      state.ecrAnswers[other] = blankEcrAnswers();
+    }
+    if (data.dciAnswersA && data.dciAnswersB && data.dciScoresA && data.dciScoresB) {
+      state.dciAnswers.A = normalizeDciAnswers(data.dciAnswersA);
+      state.dciAnswers.B = normalizeDciAnswers(data.dciAnswersB);
+      state.dciScores.A = normalizeDciScores(data.dciScoresA);
+      state.dciScores.B = normalizeDciScores(data.dciScoresB);
+    } else {
+      const other = state.session.role === 'A' ? 'B' : 'A';
+      state.dciAnswers[other] = blankDciAnswers();
+      state.dciScores[other] = blankDciScores();
+    }
+    if (silent) {
+      // Polling must not rebuild an actively clicked questionnaire. Replacing
+      // its radio nodes mid-pointer interaction was the cause of missed clicks.
+      renderSession();
+      renderProgress();
+      renderResults();
+      renderEcrProgress();
+      renderEcrResults();
+      renderDciProgress();
+      renderDciTotals();
+      renderObservation();
+      renderLongitudinal();
+    } else {
+      renderAll();
+    }
     if (!silent) {
       setMessage('#sessionMessage', state.submitted.A && state.submitted.B ? '双方已提交，标准结果已解锁。' : '同步完成。');
     }
@@ -683,6 +911,8 @@ async function refreshCloudSession({ silent = false } = {}) {
 }
 
 async function saveAnswers(submit = false) {
+  clearTimeout(draftTimer);
+  draftTimer = null;
   const person = state.respondent;
   const inspection = inspectAnswers(state.answers[person]);
   if (submit && !inspection.complete) {
@@ -695,34 +925,145 @@ async function saveAnswers(submit = false) {
       if (person === 'A') state.respondent = 'B';
       renderAll();
       setMessage('#questionnaireMessage', person === 'A' ? 'A 已提交并锁定。现在请把设备交给伴侣 B。' : 'B 已提交并锁定，标准结果已解锁。');
-      if (person === 'B') activateTab('results');
+      if (person === 'B') revealCpqResults();
     } else {
       setMessage('#questionnaireMessage', '答案已暂存在当前页面；刷新页面会清除本地数据。');
     }
     return;
   }
   if (person !== state.session.role) return;
+  if (submit && cpqSubmitQueued) return;
+  if (submit) {
+    cpqSubmitQueued = true;
+    $('#submitAnswersBtn').disabled = true;
+  }
+  const revision = cpqDraftRevision;
+  const answers = [...state.answers[person]];
+  const operation = async () => {
+    // If this draft has not started and a newer local revision already exists,
+    // skip it. The newer scheduled snapshot will be the next serialized write.
+    if (!submit && revision < cpqDraftRevision) return { skipped: true };
+    cpqSaveActive = true;
+    cpqSyncError = '';
+    renderCpqSyncStatus();
+    setMessage('#questionnaireMessage', submit ? '正在提交并锁定…' : '正在同步云端…');
+    try {
+      const result = await rpc('save_couple_answers', {
+        p_code: state.session.code,
+        p_token: state.session.token,
+        p_answers: answers,
+        p_submit: submit
+      });
+      cpqSyncedRevision = Math.max(cpqSyncedRevision, revision);
+      state.cloudProgress.cpq[person] = inspection.answered;
+      if (submit) state.submitted[person] = true;
+      return result;
+    } finally {
+      cpqSaveActive = false;
+      renderCpqSyncStatus();
+    }
+  };
+  const queued = cpqSaveTail.catch(() => undefined).then(operation);
+  cpqSaveTail = queued;
   try {
-    setMessage('#questionnaireMessage', submit ? '正在提交并锁定…' : '正在保存草稿…');
-    await rpc('save_couple_answers', {
+    const result = await queued;
+    if (result?.skipped) {
+      renderCpqSyncStatus();
+      return;
+    }
+    if (submit) {
+      renderAll();
+      setMessage('#questionnaireMessage', '提交成功，答案已锁定。');
+      await refreshCloudSession();
+      if (state.submitted.A && state.submitted.B) revealCpqResults();
+    } else if (revision === cpqDraftRevision) {
+      setMessage('#questionnaireMessage', `云端已同步 ${inspection.answered}/35。`);
+      renderProgress();
+    }
+  } catch (error) {
+    cpqSyncError = error.message;
+    renderCpqSyncStatus();
+    setMessage('#questionnaireMessage', `保存失败：${error.message}`);
+  } finally {
+    if (submit) {
+      cpqSubmitQueued = false;
+      $('#submitAnswersBtn').disabled = state.submitted[person];
+    }
+  }
+}
+
+async function saveEcrToCloud(submit = false) {
+  if (state.session.mode !== 'cloud') return;
+  if (submit) clearTimeout(supplementalDraftTimers.ecr);
+  const person = state.session.role;
+  const inspection = inspectEcrAnswers(state.ecrAnswers[person]);
+  if (submit && !inspection.complete) {
+    setMessage('#ecrMessage', inspection.invalid.length ? `存在非法题值：${inspection.invalid.join('、')}。` : `还有 ${inspection.missing.length} 题未完成。`);
+    return;
+  }
+  try {
+    if (submit) setMessage('#ecrMessage', '正在提交并锁定 ECR-R…');
+    await rpc('save_ecr_answers', {
       p_code: state.session.code,
       p_token: state.session.token,
-      p_answers: state.answers[person],
+      p_answers: state.ecrAnswers[person],
       p_submit: submit
     });
-    if (submit) state.submitted[person] = true;
-    renderAll();
-    setMessage('#questionnaireMessage', submit ? '提交成功，答案已锁定。' : '云端草稿已保存。');
-    if (submit) await refreshCloudSession();
+    if (submit) state.ecrSubmitted[person] = true;
+    renderEcr();
+    if (submit) {
+      setMessage('#ecrMessage', `${person} 的 ECR-R 已云端提交并锁定；等待伴侣独立提交。`);
+      await refreshCloudSession();
+    }
   } catch (error) {
-    setMessage('#questionnaireMessage', `保存失败：${error.message}`);
+    setMessage('#ecrMessage', `ECR-R 云同步失败：${error.message}`);
+  }
+}
+
+async function saveDciToCloud(submit = false) {
+  if (state.session.mode !== 'cloud') return;
+  if (submit) clearTimeout(supplementalDraftTimers.dci);
+  const person = state.session.role;
+  const validation = validateDciScores(state.dciScores[person]);
+  if (!validation.valid) {
+    setMessage('#dciMessage', `超出允许范围：${validation.invalid.map(field => DCI_SCORE_FIELDS[field].label).join('、')}。`);
+    return;
+  }
+  try {
+    if (submit) setMessage('#dciMessage', '正在提交并锁定 DCI…');
+    await rpc('save_dci_data', {
+      p_code: state.session.code,
+      p_token: state.session.token,
+      p_answers: state.dciAnswers[person],
+      p_scores: validation.scores,
+      p_submit: submit
+    });
+    if (submit) state.dciSubmitted[person] = true;
+    renderDci();
+    if (submit) {
+      setMessage('#dciMessage', `${person} 的 DCI 已云端提交并锁定；等待伴侣独立提交。`);
+      await refreshCloudSession();
+    }
+  } catch (error) {
+    setMessage('#dciMessage', `DCI 云同步失败：${error.message}`);
   }
 }
 
 function scheduleCloudDraft() {
   if (state.session.mode !== 'cloud' || isLocked(state.respondent)) return;
   clearTimeout(draftTimer);
-  draftTimer = setTimeout(() => saveAnswers(false), 1000);
+  draftTimer = setTimeout(() => saveAnswers(false), 200);
+}
+
+function scheduleSupplementalDraft(measure) {
+  if (state.session.mode !== 'cloud' || state.session.role !== (measure === 'ecr' ? state.ecrPerson : state.dciPerson)) return;
+  const submitted = measure === 'ecr' ? state.ecrSubmitted[state.session.role] : state.dciSubmitted[state.session.role];
+  if (submitted) return;
+  clearTimeout(supplementalDraftTimers[measure]);
+  supplementalDraftTimers[measure] = setTimeout(() => {
+    if (measure === 'ecr') saveEcrToCloud(false);
+    else saveDciToCloud(false);
+  }, 1000);
 }
 
 function leaveCloudSession() {
@@ -1127,7 +1468,13 @@ function setupActions() {
     if (isLocked(state.respondent)) return;
     if (!window.confirm(`确定清空伴侣 ${state.respondent} 当前的全部答案吗？`)) return;
     state.answers[state.respondent] = blankAnswers();
+    if (state.session.mode === 'cloud') {
+      cpqDraftRevision += 1;
+      cpqSyncError = '';
+      state.cloudProgress.cpq[state.respondent] = 0;
+    }
     renderQuestions();
+    scheduleCloudDraft();
   });
   $('#saveDraftBtn').addEventListener('click', () => saveAnswers(false));
   $('#submitAnswersBtn').addEventListener('click', () => saveAnswers(true));
@@ -1142,6 +1489,7 @@ function setupActions() {
     if (state.ecrSubmitted[person] || !window.confirm(`确定清空伴侣 ${person} 的全部 ECR-R 答案吗？`)) return;
     state.ecrAnswers[person] = blankEcrAnswers();
     renderEcr();
+    scheduleSupplementalDraft('ecr');
   });
   $('#dciPerson').addEventListener('change', event => {
     state.dciPerson = event.target.value;
@@ -1150,11 +1498,13 @@ function setupActions() {
   $('#submitDciBtn').addEventListener('click', submitDci);
   $('#clearDciBtn').addEventListener('click', () => {
     const person = state.dciPerson;
+    if (state.dciSubmitted[person]) return;
     if (!window.confirm(`确定清空伴侣 ${person} 的 DCI 答案和录入分数吗？`)) return;
     state.dciAnswers[person] = blankDciAnswers();
     state.dciScores[person] = blankDciScores();
     state.dciSubmitted[person] = false;
     renderDci();
+    scheduleSupplementalDraft('dci');
     setMessage('#dciMessage', `已清空伴侣 ${person} 的 DCI 数据。`);
   });
   $('#exportLongitudinalBtn').addEventListener('click', exportLongitudinalRecord);
@@ -1235,4 +1585,4 @@ setInterval(() => {
   if (document.visibilityState === 'visible' && cloudReady() && state.session.mode === 'cloud') {
     refreshCloudSession({ silent: true });
   }
-}, 5000);
+}, 2000);

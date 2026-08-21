@@ -22,13 +22,12 @@
   frame.addEventListener('load', async () => {
     try {
       const doc = frame.contentDocument;
-      await waitFor(() => doc.querySelectorAll('#dciScoreGrid input').length === 12);
+      await waitFor(() => doc.querySelectorAll('#dciQuestions .question').length === 37);
       doc.querySelector('#coupleResearchId').value = 'study_001';
       doc.querySelector('#assessmentDate').value = '2026-08-21';
       doc.querySelector('#timepointLabel').value = 'baseline';
-      const totalInput = [...doc.querySelectorAll('#dciScoreGrid input')].find(input => input.getAttribute('aria-label').includes('DCI 总分'));
-      totalInput.value = '100';
-      totalInput.dispatchEvent(new Event('change', { bubbles: true }));
+      doc.querySelectorAll('#dciQuestions .question').forEach(question => question.querySelector('input[value="1"]').click());
+      doc.querySelector('#submitDciBtn').click();
       const originalAnchorClick = frame.contentWindow.HTMLAnchorElement.prototype.click;
       const originalCreateObjectUrl = frame.contentWindow.URL.createObjectURL;
       let exportedBlob = null;
@@ -44,7 +43,8 @@
       const exported = JSON.parse(await exportedBlob.text());
       assert(exported.schema === LONGITUDINAL_SCHEMA, 'export schema');
       assert(exported.assessment.coupleId === 'study_001', 'export metadata');
-      assert(exported.measures.dci.scores.A.totalWithoutEvaluation === 100, 'exported DCI score');
+      assert(exported.measures.dci.scores.A.totalWithoutEvaluation === 67, 'exported official DCI score');
+      assert(exported.measures.dci.answers.A.length === 37, 'exported complete DCI answers');
 
       const record = (date, strain) => ({
         schema: LONGITUDINAL_SCHEMA,

@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <title>Supplemental model tests</title>
 <pre id="result">RUNNING</pre>
+<script src="./dci-config.js"></script>
 <script type="module">
   import {
     ECR_R_ITEMS,
@@ -10,7 +11,8 @@
     scoreEcrR,
     validateDciScores,
     validateDciItemBank,
-    scoreAuthorizedDci
+    scoreAuthorizedDci,
+    DCI_CANONICAL_KEY
   } from './supplemental-model.mjs';
   import {
     LONGITUDINAL_SCHEMA,
@@ -34,17 +36,8 @@
     assert(dciManual.available && dciManual.valid && dciManual.scores.totalWithoutEvaluation === 100, 'manual DCI scores');
     assert(!validateDciScores({ totalWithoutEvaluation: 176 }).valid, 'DCI range guard');
     assert(!validateDciItemBank(null).valid, 'DCI authorization guard');
-    const subscales = [
-      ...Array(4).fill('selfStressCommunication'),
-      ...Array(5).fill('selfSupportive'),
-      ...Array(2).fill('selfDelegated'),
-      ...Array(4).fill('selfNegative'),
-      ...Array(4).fill('partnerStressCommunication'),
-      ...Array(5).fill('partnerSupportive'),
-      ...Array(2).fill('partnerDelegated'),
-      ...Array(4).fill('partnerNegative'),
-      ...Array(5).fill('common')
-    ];
+    const subscaleById = new Map(Object.entries(DCI_CANONICAL_KEY).flatMap(([subscale, ids]) => ids.map(id => [id, subscale])));
+    const reversed = new Set([7, 10, 11, 15, 22, 25, 26, 27]);
     const bank = {
       version: 'synthetic-test-only',
       language: 'test',
@@ -52,12 +45,28 @@
       items: Array.from({ length: 37 }, (_, index) => ({
         id: index + 1,
         text: `Synthetic test item ${index + 1}`,
-        subscale: index < 35 ? subscales[index] : undefined,
-        reverse: index === 0
+        subscale: index < 35 ? subscaleById.get(index + 1) : 'evaluation',
+        reverse: reversed.has(index + 1)
       })).reverse()
     };
     const dci = scoreAuthorizedDci(Array(37).fill(1), bank);
-    assert(dci.complete && dci.scores.totalWithoutEvaluation === 39, 'authorized DCI scoring and item-id order');
+    assert(dci.complete && dci.scores.totalWithoutEvaluation === 67, 'authorized DCI scoring and item-id order');
+    assert(validateDciItemBank(window.CPQ_DCI_ITEM_BANK).valid, 'bundled official DCI item bank');
+    assert(window.CPQ_DCI_ITEM_BANK.items.length === 37, 'bundled DCI item count');
+    const officialReverseIds = window.CPQ_DCI_ITEM_BANK.items.filter(item => item.reverse).map(item => item.id);
+    assert(JSON.stringify(officialReverseIds) === JSON.stringify([...reversed]), 'official DCI reverse-key IDs');
+    const officialAllOnes = scoreAuthorizedDci(Array(37).fill(1), window.CPQ_DCI_ITEM_BANK);
+    assert(officialAllOnes.complete && officialAllOnes.scores.totalWithoutEvaluation === 67, 'bundled official DCI scoring');
+    const theoreticalMaximumAnswers = Array(37).fill(5);
+    [...reversed].forEach(id => { theoreticalMaximumAnswers[id - 1] = 1; });
+    const officialMaximum = scoreAuthorizedDci(theoreticalMaximumAnswers, window.CPQ_DCI_ITEM_BANK);
+    assert(officialMaximum.scores.totalWithoutEvaluation === 175, 'official DCI theoretical maximum');
+    assert(officialMaximum.scores.selfNegative === 20 && officialMaximum.scores.partnerNegative === 20, 'official DCI negative-subscale reverse scoring');
+    assert(officialMaximum.scores.satisfaction === 5 && officialMaximum.scores.effectiveness === 5, 'DCI evaluation items remain separate');
+    assert(!scoreAuthorizedDci([...Array(36).fill(1), 0], window.CPQ_DCI_ITEM_BANK).complete, 'DCI response range guard');
+    const driftedBank = structuredClone(window.CPQ_DCI_ITEM_BANK);
+    driftedBank.items[0].subscale = 'common';
+    assert(!validateDciItemBank(driftedBank).valid, 'DCI official scoring-key drift guard');
 
     const record = (date, strain) => ({
       schema: LONGITUDINAL_SCHEMA,

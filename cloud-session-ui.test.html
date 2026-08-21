@@ -11,14 +11,25 @@
     submittedA: false,
     submittedB: false,
     answersA: Array(35).fill(null),
-    answersB: Array(35).fill(null)
+    answersB: Array(35).fill(null),
+    ecrSubmittedA: false,
+    ecrSubmittedB: false,
+    ecrAnswersA: Array(36).fill(null),
+    ecrAnswersB: Array(36).fill(null),
+    dciSubmittedA: false,
+    dciSubmittedB: false,
+    dciAnswersA: Array(37).fill(null),
+    dciAnswersB: Array(37).fill(null),
+    dciScoresA: {},
+    dciScoresB: {}
   };
+  const answeredCount = answers => answers.filter(Number.isInteger).length;
 
   window.handleCloudTestFetch = async (url, options) => {
     const name = new URL(url).pathname.split('/').pop();
     const body = JSON.parse(options.body || '{}');
     if (name === 'cpq_service_status') {
-      return { status: 200, body: { status: 'ok', schemaVersion: 3, sessionRetentionDays: 30 } };
+      return { status: 200, body: { status: 'ok', schemaVersion: 6, features: ['serverDciScoring', 'measureProgressCounts'], sessionRetentionDays: 30 } };
     }
     if (name === 'create_couple_session') {
       return { status: 200, body: { code: backend.code, role: 'A', token: backend.tokenA } };
@@ -31,6 +42,8 @@
     }
     if (name === 'get_couple_session') {
       const isA = body.p_token === backend.tokenA;
+      const ecrReady = backend.ecrSubmittedA && backend.ecrSubmittedB;
+      const dciReady = backend.dciSubmittedA && backend.dciSubmittedB;
       return {
         status: 200,
         body: {
@@ -38,13 +51,51 @@
           role: isA ? 'A' : 'B',
           submittedA: backend.submittedA,
           submittedB: backend.submittedB,
+          answeredCountA: answeredCount(backend.answersA),
+          answeredCountB: answeredCount(backend.answersB),
           myAnswers: isA ? backend.answersA : backend.answersB,
           answersA: null,
           answersB: null,
+          ecrSubmittedA: backend.ecrSubmittedA,
+          ecrSubmittedB: backend.ecrSubmittedB,
+          ecrAnsweredCountA: answeredCount(backend.ecrAnswersA),
+          ecrAnsweredCountB: answeredCount(backend.ecrAnswersB),
+          myEcrAnswers: isA ? backend.ecrAnswersA : backend.ecrAnswersB,
+          ecrAnswersA: ecrReady ? backend.ecrAnswersA : null,
+          ecrAnswersB: ecrReady ? backend.ecrAnswersB : null,
+          dciSubmittedA: backend.dciSubmittedA,
+          dciSubmittedB: backend.dciSubmittedB,
+          dciAnsweredCountA: answeredCount(backend.dciAnswersA),
+          dciAnsweredCountB: answeredCount(backend.dciAnswersB),
+          myDciAnswers: isA ? backend.dciAnswersA : backend.dciAnswersB,
+          myDciScores: isA ? backend.dciScoresA : backend.dciScoresB,
+          dciAnswersA: dciReady ? backend.dciAnswersA : null,
+          dciAnswersB: dciReady ? backend.dciAnswersB : null,
+          dciScoresA: dciReady ? backend.dciScoresA : null,
+          dciScoresB: dciReady ? backend.dciScoresB : null,
           spaffEvents: [],
           spaffRatings: { A: {}, B: {} }
         }
       };
+    }
+    if (name === 'save_couple_answers') {
+      const isA = body.p_token === backend.tokenA;
+      backend[isA ? 'answersA' : 'answersB'] = body.p_answers;
+      if (body.p_submit) backend[isA ? 'submittedA' : 'submittedB'] = true;
+      return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
+    }
+    if (name === 'save_ecr_answers') {
+      const isA = body.p_token === backend.tokenA;
+      backend[isA ? 'ecrAnswersA' : 'ecrAnswersB'] = body.p_answers;
+      if (body.p_submit) backend[isA ? 'ecrSubmittedA' : 'ecrSubmittedB'] = true;
+      return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
+    }
+    if (name === 'save_dci_data') {
+      const isA = body.p_token === backend.tokenA;
+      backend[isA ? 'dciAnswersA' : 'dciAnswersB'] = body.p_answers;
+      backend[isA ? 'dciScoresA' : 'dciScoresB'] = body.p_scores;
+      if (body.p_submit) backend[isA ? 'dciSubmittedA' : 'dciSubmittedB'] = true;
+      return { status: 200, body: { ok: true, role: isA ? 'A' : 'B', submitted: Boolean(body.p_submit) } };
     }
     return { status: 404, body: { message: `Unhandled test RPC: ${name}` } };
   };
@@ -112,8 +163,46 @@
     await waitFor(() => docB.querySelector('#activeCode')?.textContent === backend.code, 'device B did not join session');
     assert(docB.querySelector('#activeRole').textContent === 'B', 'device B role');
 
+    docB.querySelector('[data-tab="questionnaire"]').click();
+    docB.querySelectorAll('#questions .question').forEach(question => question.querySelector('input[value="3"]').click());
+    docB.querySelector('.stage[data-stage="discussion"]').click();
+    const discussionQuestions = [...docB.querySelectorAll('#questions .question')];
+    discussionQuestions.slice(0, 4).forEach(question => question.querySelector('input[value="4"]').click());
+    const stableQuestionNode = docB.querySelector('#questions .question');
+    await waitFor(
+      () => answeredCount(backend.answersB) === 8 && docB.querySelector('#cpqSyncStatus').textContent === '云端已同步',
+      'CPQ near-real-time draft or sync feedback failed'
+    );
+    await waitFor(() => docA.querySelector('#progressB').textContent.startsWith('8/35'), 'partner CPQ progress did not cross devices');
+    assert(docB.querySelector('#questions .question') === stableQuestionNode, 'silent polling rebuilt the active CPQ form');
+
+    backend.answersA = Array(35).fill(2);
     backend.submittedA = true;
-    await waitFor(() => docB.querySelector('#submitA')?.textContent === '已锁定', 'automatic cross-device polling failed');
+    await waitFor(() => docB.querySelector('#submitA')?.textContent.includes('已锁定'), 'automatic cross-device polling failed');
+    assert(docB.querySelector('#progressA').textContent === '35/35 · 已锁定', 'locked partner progress must remain 35/35');
+
+    docA.querySelector('[data-tab="supplements"]').click();
+    docA.querySelectorAll('#ecrQuestions .question').forEach(question => question.querySelector('input[value="1"]').click());
+    docA.querySelector('#submitEcrBtn').click();
+    await waitFor(() => backend.ecrSubmittedA, 'device A ECR-R did not sync');
+    assert(docA.querySelector('#ecrResults').hidden, 'ECR-R result leaked before both submissions');
+
+    docB.querySelector('[data-tab="supplements"]').click();
+    docB.querySelectorAll('#ecrQuestions .question').forEach(question => question.querySelector('input[value="2"]').click());
+    docB.querySelector('#submitEcrBtn').click();
+    await waitFor(() => !docA.querySelector('#ecrResults').hidden, 'ECR-R cross-device unlock failed');
+
+    docA.querySelectorAll('#dciQuestions .question').forEach(question => question.querySelector('input[value="1"]').click());
+    docA.querySelector('#submitDciBtn').click();
+    await waitFor(() => backend.dciSubmittedA, 'device A DCI did not sync');
+    assert(docA.querySelector('#dciTotalB').textContent === '—', 'DCI result leaked before both submissions');
+
+    docB.querySelectorAll('#dciQuestions .question').forEach(question => question.querySelector('input[value="2"]').click());
+    docB.querySelector('#submitDciBtn').click();
+    await waitFor(() => docA.querySelector('#dciTotalB').textContent === '86/175', 'DCI cross-device unlock failed');
+    assert(!docA.querySelector('#dciResults').hidden, 'complete DCI subscale results did not unlock');
+    deviceA.contentWindow.localStorage.removeItem('cpqSessionV2');
+    deviceB.contentWindow.localStorage.removeItem('cpqSessionV2');
     output.textContent = 'PASS';
   } catch (error) {
     output.textContent = `FAIL: ${error.message}`;

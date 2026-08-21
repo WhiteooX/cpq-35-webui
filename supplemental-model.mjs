@@ -115,6 +115,23 @@ export function validateDciScores(scores) {
 
 const DCI_SUBSCALES = new Set(Object.keys(DCI_SCORE_FIELDS).filter(key => !['totalWithoutEvaluation', 'satisfaction', 'effectiveness'].includes(key)));
 
+export const DCI_CANONICAL_KEY = Object.freeze({
+  selfStressCommunication: Object.freeze([1, 2, 3, 4]),
+  selfSupportive: Object.freeze([20, 21, 23, 24, 29]),
+  selfDelegated: Object.freeze([28, 30]),
+  selfNegative: Object.freeze([22, 25, 26, 27]),
+  partnerStressCommunication: Object.freeze([16, 17, 18, 19]),
+  partnerSupportive: Object.freeze([5, 6, 8, 9, 13]),
+  partnerDelegated: Object.freeze([12, 14]),
+  partnerNegative: Object.freeze([7, 10, 11, 15]),
+  common: Object.freeze([31, 32, 33, 34, 35])
+});
+
+const DCI_SUBSCALE_BY_ID = new Map(
+  Object.entries(DCI_CANONICAL_KEY).flatMap(([subscale, ids]) => ids.map(id => [id, subscale]))
+);
+const DCI_REVERSED_IDS = new Set([7, 10, 11, 15, 22, 25, 26, 27]);
+
 export function validateDciItemBank(bank) {
   if (!bank || bank.authorizationConfirmed !== true) return Object.freeze({ valid: false, reason: 'No authorized DCI item bank is configured' });
   if (!Array.isArray(bank.items) || bank.items.length !== 37) return Object.freeze({ valid: false, reason: 'DCI item bank must contain exactly 37 items' });
@@ -123,7 +140,12 @@ export function validateDciItemBank(bank) {
     if (!Number.isInteger(item.id) || item.id < 1 || item.id > 37 || ids.has(item.id) || typeof item.text !== 'string' || !item.text.trim()) {
       return Object.freeze({ valid: false, reason: 'DCI item metadata is invalid' });
     }
-    if (item.id <= 35 && !DCI_SUBSCALES.has(item.subscale)) return Object.freeze({ valid: false, reason: `Invalid DCI subscale for item ${item.id}` });
+    if (item.id <= 35 && item.subscale !== DCI_SUBSCALE_BY_ID.get(item.id)) {
+      return Object.freeze({ valid: false, reason: `DCI subscale key does not match the official scoring key for item ${item.id}` });
+    }
+    if (Boolean(item.reverse) !== DCI_REVERSED_IDS.has(item.id)) {
+      return Object.freeze({ valid: false, reason: `DCI reverse key does not match the official scoring key for item ${item.id}` });
+    }
     ids.add(item.id);
   }
   return Object.freeze({ valid: true, version: bank.version, language: bank.language });
