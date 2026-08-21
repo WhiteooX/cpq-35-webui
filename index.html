@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、完整英文 DCI-37、SPAFF-informed 观察与本地纵向分析。">
+  <meta name="description" content="CPQ-35 双人沟通模式问卷 WebUI，含 ECR-R、双语 DCI-37 阅读辅助、SPAFF-informed 观察与本地纵向分析。">
   <meta name="referrer" content="no-referrer">
   <title>CPQ-35 双人沟通模式问卷</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -103,7 +103,7 @@
     <div class="section-heading">
       <div><h2>依恋与共同应对</h2><p>ECR-R 与 DCI 是 CPQ 之外的独立构念，不与 CPQ 合成总分。</p></div>
     </div>
-    <aside class="callout warning"><strong>语言与解释边界：</strong>ECR-R 英文题面来自量表作者公开页面，中文仅为未验证的阅读辅助，正式中文研究需使用经过授权和测量等值性验证的版本。两个维度均按连续分数报告，不自动划分依恋类型。</aside>
+    <aside class="callout warning"><strong>语言与解释边界：</strong>ECR-R 与 DCI 的中文均为本项目制作的非官方阅读辅助，未经正式翻译、回译或测量等值性验证；英文原文紧随中文并作为版本与计分参照。正式中文研究需使用经过授权和心理测量验证的版本。ECR-R 两个维度均按连续分数报告，不自动划分依恋类型。</aside>
     <aside class="callout"><strong>保存方式：</strong>远程会话中，ECR-R 与 DCI 草稿和提交状态会同步到 Supabase；双方分别提交同一量表前，不返回对方答案或分数。本地模式仍只保存在本页内存，刷新或开始新测评前请下载纵向档案。</aside>
     <article class="card">
       <div class="section-heading compact-heading">
@@ -131,7 +131,7 @@
 
     <article class="card">
       <div class="section-heading compact-heading">
-        <div><h3>DCI 37题 · 官方英文版</h3><p>测量双方的压力沟通、支持性／委托式／消极／共同应对。</p></div>
+        <div><h3>DCI 37题 · 中文阅读辅助 / 英文原文</h3><p>测量双方的压力沟通、支持性／委托式／消极／共同应对。</p></div>
         <div class="button-row">
           <label class="sr-only" for="dciPerson">DCI 当前作答者</label>
           <select id="dciPerson"><option value="A">伴侣 A</option><option value="B">伴侣 B</option></select>
@@ -144,7 +144,7 @@
         <div class="metric"><span>A 完成度</span><strong id="dciProgressA">0/37</strong></div>
         <div class="metric"><span>B 完成度</span><strong id="dciProgressB">0/37</strong></div>
       </div>
-      <p class="scale-instruction"><strong>作答尺度：</strong>1 = very rarely（非常少），2 = rarely（少），3 = sometimes（有时），4 = often（经常），5 = very often（非常经常）。题项保持原始英文，不以未经验证的中文自译替代正式版本。</p>
+      <p class="scale-instruction"><strong>作答尺度：</strong>1 = very rarely（非常少），2 = rarely（少），3 = sometimes（有时），4 = often（经常），5 = very often（非常经常）。中文只用于辅助理解，英文原文保留在每题下方并作为版本参照；如有歧义，以英文原意为准。</p>
       <div id="dciQuestions" hidden></div>
       <div id="dciManualEntry">
         <p>当前未加载获准公开部署的 DCI 题库。若已使用合法题本和正式计分手册完成测量，可在下方录入当前伴侣的分量表原始分；留空表示该项未测。</p>
@@ -155,7 +155,7 @@
         <article class="metric-card"><h4>伴侣 A</h4><p>DCI 总分 <strong id="dciTotalA">—</strong></p><ul id="dciScoresA" class="dci-score-list"></ul></article>
         <article class="metric-card"><h4>伴侣 B</h4><p>DCI 总分 <strong id="dciTotalB">—</strong></p><ul id="dciScoresB" class="dci-score-list"></ul></article>
       </div>
-      <p class="field-help">计分严格使用原始题号：7、10、11、15、22、25、26、27 反向计分；总分为第1–35题之和，第36、37题仅作为满意度与效果评价，不进入总分。双方各自提交前不显示对方结果。来源与复用说明：<a href="https://www.researchgate.net/profile/Guy-Bodenmann/publication/323285418_Dyadic_Coping_Inventory/links/5a901eeea6fdccecff00ce52/Dyadic-Coping-Inventory.pdf">Bodenmann (2008), DCI-37</a>；Copyright © 2008 Guy Bodenmann，reproduced with permission。网站不套用未经核验的个体诊断或关系结局阈值。</p>
+      <p class="field-help">计分严格使用原始题号：7、10、11、15、22、25、26、27 反向计分；总分为第1–35题之和，第36、37题仅作为满意度与效果评价，不进入总分。双方各自提交前不显示对方结果。中文为非官方阅读辅助，尚未经过独立双译、回译、认知访谈、测量不变性或本土常模验证，不应称为 DCI 正式中文版。来源与复用说明：<a href="https://www.researchgate.net/profile/Guy-Bodenmann/publication/323285418_Dyadic_Coping_Inventory/links/5a901eeea6fdccecff00ce52/Dyadic-Coping-Inventory.pdf">Bodenmann (2008), DCI-37</a>；Copyright © 2008 Guy Bodenmann，reproduced with permission。网站不套用未经核验的个体诊断或关系结局阈值。</p>
     </article>
   </section>
 
@@ -377,7 +377,7 @@
     <aside class="callout danger-note"><strong>安全提示：</strong>CPQ 完整题组包含身体攻击行为题目，但它不是专门的暴力风险筛查。如果现实中存在即时人身危险，请优先寻求当地紧急服务和可信支持。</aside>
   </section>
 
-  <footer>CPQ-35 standard scoring core · ECR-R · complete English DCI-37 · local longitudinal records · SPAFF-informed observation</footer>
+  <footer>CPQ-35 standard scoring core · ECR-R · bilingual DCI-37 reading aid · local longitudinal records · SPAFF-informed observation</footer>
 </main>
 <script src="supabase-config.js"></script>
 <script src="divorce-model-config.js"></script>

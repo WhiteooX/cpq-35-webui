@@ -27,6 +27,11 @@
       assert(doc.querySelectorAll('#ecrQuestions .question').length === 36, 'ECR-R item count');
       assert(doc.querySelectorAll('#dciQuestions .question').length === 37, 'complete official DCI-37 item count');
       assert(doc.querySelector('#dciStatus').textContent.includes('完整 37 题'), 'official DCI status');
+      assert(doc.querySelector('#dciStatus').textContent.includes('非官方阅读辅助'), 'DCI translation caveat');
+      assert(doc.querySelector('#dciQuestions .question .question-zh').textContent.includes('伴侣'), 'DCI Chinese primary wording');
+      assert(doc.querySelector('#dciQuestions .question .question-en').textContent.startsWith('I let my partner'), 'DCI official English reference');
+      assert(doc.querySelector('.dci-section-heading span').textContent.includes('压力'), 'DCI Chinese section heading');
+      assert(doc.querySelector('.dci-section-heading small').textContent.startsWith('How you communicate'), 'DCI English section reference');
       assert(doc.querySelector('#assessmentDate').value, 'longitudinal date initialization');
 
       doc.querySelector('[data-tab="questionnaire"]').click();

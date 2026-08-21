@@ -415,7 +415,24 @@ function makeDciQuestion(item, person, locked) {
   fieldset.className = 'question question-inner';
   fieldset.disabled = locked;
   const legend = document.createElement('legend');
-  legend.textContent = `${item.id}. ${item.text}`;
+  const head = document.createElement('span');
+  head.className = 'question-head';
+  const number = document.createElement('span');
+  number.className = 'question-number';
+  number.textContent = String(item.id);
+  const wording = document.createElement('span');
+  const zh = document.createElement('span');
+  zh.className = 'question-zh';
+  zh.textContent = item.zh || item.text;
+  wording.append(zh);
+  if (item.zh) {
+    const en = document.createElement('span');
+    en.className = 'question-en';
+    en.textContent = item.text;
+    wording.append(en);
+  }
+  head.append(number, wording);
+  legend.append(head);
   fieldset.append(legend);
   const scale = document.createElement('div');
   scale.className = 'likert five';
@@ -453,6 +470,14 @@ function renderDciProgress() {
 }
 
 function renderDciQuestions(person, locked) {
+  const sectionZh = {
+    'How you communicate your stress to your partner': '你如何向伴侣传达自己的压力',
+    'What your partner does when you are feeling stressed': '当你感到压力时，伴侣会怎么做',
+    'How your partner communicates when he/she is feeling stressed': '伴侣如何向你传达自己的压力',
+    'What you do when your partner communicates stress': '当伴侣表达压力时，你会怎么做',
+    'What you and your partner do when you are both feeling stressed': '当你们双方都有压力时，你们会怎么做',
+    'How you evaluate your coping as a couple': '你如何评价你们作为伴侣的共同应对'
+  };
   const fragment = document.createDocumentFragment();
   let currentSection = '';
   for (const item of [...dciItemBank.items].sort((a, b) => a.id - b.id)) {
@@ -460,7 +485,14 @@ function renderDciQuestions(person, locked) {
       currentSection = item.section;
       const heading = document.createElement('h4');
       heading.className = 'dci-section-heading';
-      heading.textContent = item.section;
+      const zh = document.createElement('span');
+      zh.textContent = sectionZh[item.section] || item.section;
+      heading.append(zh);
+      if (sectionZh[item.section]) {
+        const en = document.createElement('small');
+        en.textContent = item.section;
+        heading.append(en);
+      }
       fragment.append(heading);
     }
     fragment.append(makeDciQuestion(item, person, locked));
@@ -535,8 +567,8 @@ function renderDci() {
   $('#submitDciBtn').disabled = state.dciSubmitted[person];
   $('#clearDciBtn').disabled = state.dciSubmitted[person];
   if (bank.valid) {
-    $('#dciStatus').classList.remove('warning');
-    $('#dciStatus').textContent = `已加载 ${bank.version}（${bank.language}）完整 37 题。1 = very rarely，5 = very often；请按通常情况独立作答。`;
+    $('#dciStatus').classList.add('warning');
+    $('#dciStatus').textContent = `已加载 ${bank.version} 完整 37 题。中文为本项目制作的非官方阅读辅助，未经正式翻译与测量等值性验证；英文原文是版本与计分参照。1 = very rarely，5 = very often。`;
     const locked = state.dciSubmitted[person];
     $('#submitDciBtn').disabled = locked;
     renderDciQuestions(person, locked);
@@ -1159,7 +1191,10 @@ function currentLongitudinalRecord() {
           version: dciBankValidation.valid ? dciItemBank.version : 'DCI-37 manual scored-result entry',
           scores: dciScores,
           answers: Object.fromEntries(['A', 'B'].map(person => [person, state.dciSubmitted[person] ? state.dciAnswers[person] : null])),
-          itemBankBundled: dciBankValidation.valid
+          itemBankBundled: dciBankValidation.valid,
+          languageStatus: dciBankValidation.valid
+            ? (dciItemBank.translationStatus || 'Official English wording')
+            : 'Manual scored-result entry; item wording not recorded'
         },
         observation: {
           macroAffectEvents: state.events,

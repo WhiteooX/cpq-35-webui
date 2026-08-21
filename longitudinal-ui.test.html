@@ -45,6 +45,7 @@
       assert(exported.assessment.coupleId === 'study_001', 'export metadata');
       assert(exported.measures.dci.scores.A.totalWithoutEvaluation === 67, 'exported official DCI score');
       assert(exported.measures.dci.answers.A.length === 37, 'exported complete DCI answers');
+      assert(exported.measures.dci.languageStatus.includes('unvalidated reading aid'), 'exported DCI translation status');
 
       const record = (date, strain) => ({
         schema: LONGITUDINAL_SCHEMA,

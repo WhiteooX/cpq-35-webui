@@ -53,6 +53,8 @@
     assert(dci.complete && dci.scores.totalWithoutEvaluation === 67, 'authorized DCI scoring and item-id order');
     assert(validateDciItemBank(window.CPQ_DCI_ITEM_BANK).valid, 'bundled official DCI item bank');
     assert(window.CPQ_DCI_ITEM_BANK.items.length === 37, 'bundled DCI item count');
+    assert(window.CPQ_DCI_ITEM_BANK.items.every(item => typeof item.zh === 'string' && item.zh.trim()), 'bundled DCI Chinese reading aids');
+    assert(window.CPQ_DCI_ITEM_BANK.translationStatus.includes('unvalidated'), 'DCI non-validated translation status');
     const officialReverseIds = window.CPQ_DCI_ITEM_BANK.items.filter(item => item.reverse).map(item => item.id);
     assert(JSON.stringify(officialReverseIds) === JSON.stringify([...reversed]), 'official DCI reverse-key IDs');
     const officialAllOnes = scoreAuthorizedDci(Array(37).fill(1), window.CPQ_DCI_ITEM_BANK);
